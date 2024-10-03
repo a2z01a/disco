@@ -51,8 +51,8 @@ async function jVoiceChannel(message) {
 
       // Add error handling for the player
       player.on('error', (error) => {
-        console.error('Error:', error.message);
-        console.error('Error Stack:', error.stack);
+        console.error('Playback error:', error.message);
+  console.error('Error details:', error);
         playSong().catch(console.error);
       });
 
@@ -115,11 +115,15 @@ async function playSong() {
     console.log(`Preparing to play: ${song.title}`);
 
     const stream = await play.stream(song.url);
+	if (!stream) {
+  console.error('Stream could not be created for this song.');
+  return;
+}
     const resource = createAudioResource(stream.stream, { 
-      inputType: stream.type,
+       inputType: StreamType.Arbitrary,
       inlineVolume: true
     });
-    resource.volume.setVolume(0.5); // Set the volume to 50%
+    resource.volume.setVolume(1); // Set the volume to 50%
 
     player.play(resource);
     console.log(`Now playing: ${song.title}`);
@@ -182,4 +186,13 @@ async function previousSong(message) {
   }
 }
 
+connection.on(VoiceConnectionStatus.Disconnected, async (oldState, newState) => {
+  console.error('Disconnected from voice channel.');
+  try {
+    await entersState(connection, VoiceConnectionStatus.Connecting, 5_000);
+  } catch (error) {
+    console.error('Reconnection attempt failed:', error);
+    connection.destroy();
+  }
+});
 client.login(process.env.DISCORD_BOT_TOKEN);
