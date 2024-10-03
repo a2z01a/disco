@@ -106,34 +106,29 @@ client.on('messageCreate', async (message) => {
 });
 
 // Play a song from the queue
-async function playSong() {
+async function playSong(url) {
   try {
-    if (queue.length === 0) {
-      console.log('Queue is empty. Stopping playback.');
-      return;
-    }
+    // Download the audio using ytdl-core or other methods
+    const stream = await ytdl(url, { filter: 'audioonly' });
 
-    const song = queue[currentIndex];
-    console.log(`Preparing to play: ${song.title}`);
+    // Create a PrismMedia instance
+    const prism = new PrismMedia();
 
-    // Use yt-dlp to download the stream
-    const ytDlpCommand = `yt-dlp --username oauth2 --password '' -f bestaudio -o - ${song.url}`;
-    const stream = exec(ytDlpCommand, { shell: true });
-
-    stream.stdout.on('data', (data) => {
-      const resource = createAudioResource(data, {
-        // inputType: AudioResourceType.Arbitrary, // Use AudioResourceType
-        inlineVolume: true
-      });
-      resource.volume.setVolume(1); // Set the volume to 100%
-      player.play(resource);
-      console.log(`Now playing: ${song.title}`);
+    // Transcode the audio using FFmpeg
+    const transcodedStream = prism.ffmpeg(stream, {
+      format: 'mp3',
+      audioFrequency: 48000,
+      audioChannels: 2
     });
 
-    stream.stderr.on('data', (error) => {
-      console.error('Error streaming audio:', error);
-    });
-  } catch (error) {
+    // Create a Discord audio resource
+    const resource = createAudioResource(transcodedStream);
+
+    // Play the resource using your Discord.js voice connection
+    // ...
+  }
+
+  catch (error) {
     console.error('Error in playSong function:', error);
     currentIndex = (currentIndex + 1) % queue.length;
     return playSong(); // Try playing the next song
