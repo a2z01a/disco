@@ -1,4 +1,5 @@
 require('dotenv').config();
+const { exec } = require('child_process');
 const { Client, GatewayIntentBits } = require('discord.js');
 const { 
   createAudioPlayer, createAudioResource, AudioPlayerStatus, 
@@ -114,31 +115,33 @@ async function playSong() {
     const song = queue[currentIndex];
     console.log(`Preparing to play: ${song.title}`);
 
-    // Use yt-dlp to download the stream
-    const ytDlpCommand = `yt-dlp --username oauth2 --password '' -f bestaudio -o - ${song.url}`;
-    
-    const stream = exec(ytDlpCommand, { shell: true });
+    const stream = await play.stream(song.url);
+    if (!stream) {
+      console.error('Stream could not be created for this song.');
+      return;
+    }
 
-    stream.stdout.on('data', (data) => {
-      const resource = createAudioResource(data, {
-        inputType: StreamType.Arbitrary,
-        inlineVolume: true
-      });
-      resource.volume.setVolume(1); // Set the volume to 100%
-      player.play(resource);
-      console.log(`Now playing: ${song.title}`);
+    const resource = createAudioResource(stream.stream, { 
+      inputType: StreamType.Arbitrary,
+      inlineVolume: true
     });
+    resource.volume.setVolume(1); // Set the volume to 100%
 
-    stream.stderr.on('data', (error) => {
-      console.error('Error streaming audio:', error);
-    });
-
+    player.play(resource);
+    console.log(`Now playing: ${song.title}`);
   } catch (error) {
     console.error('Error in playSong function:', error);
     currentIndex = (currentIndex + 1) % queue.length;
-    return playSong(); // Try playing the next song
+
+    // Check if the next index is valid before trying to play the next song
+    if (currentIndex < queue.length) {
+      await playSong(); // Try playing the next song only if there's a valid next song
+    } else {
+      console.log('No more songs in the queue.');
+    }
   }
 }
+
 
 
 // Load playlist function
