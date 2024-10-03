@@ -4,6 +4,7 @@ const {
   VoiceConnectionStatus, joinVoiceChannel, entersState 
 } = require('@discordjs/voice');
 const { exec } = require('child_process');
+const { PrismMedia } = require('prism-media');
 const { Client, GatewayIntentBits } = require('discord.js');
 
 
@@ -125,7 +126,6 @@ async function playSong(url) {
     const resource = createAudioResource(transcodedStream);
 
     // Play the resource using your Discord.js voice connection
-    // ...
   }
 
   catch (error) {
