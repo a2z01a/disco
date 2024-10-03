@@ -80,8 +80,12 @@ async function jVoiceChannel(message) {
 }
 
 // Message handler for commands
+let lastMessage;
+
 client.on('messageCreate', async (message) => {
   if (!message.content.startsWith(prefix) || message.author.bot) return;
+  
+  lastMessage = message;
 
   const args = message.content.slice(prefix.length).trim().split(/ +/);
   const command = args.shift().toLowerCase();
@@ -117,7 +121,7 @@ async function playSong() {
 
   try {
     const song = queue[currentIndex];
-    console.log(`Playing: ${song.title}`);
+    console.log(`Attempting to play: ${song.title}`);
 
     const stream = await play.stream(song.url);
     const resource = createAudioResource(stream.stream, {
@@ -126,9 +130,39 @@ async function playSong() {
 
     player.play(resource);
 
-    await entersState(player, AudioPlayerStatus.Playing, 5_000);
+    try {
+      // Increase the timeout to 30 seconds
+      await entersState(player, AudioPlayerStatus.Playing, 30_000);
+      console.log(`Now playing: ${song.title}`);
+    } catch (error) {
+      console.error('Error while waiting for the player to enter Playing state:', error);
+      throw error; // Re-throw the error to be caught by the outer try-catch
+    }
   } catch (error) {
     console.error('Error in playSong function:', error);
+    
+    // Check if the error is due to an abort
+    if (error.name === 'AbortError') {
+      console.log('Playback was aborted. Attempting to reconnect...');
+      
+      // Attempt to recreate the connection
+      try {
+        if (connection) {
+          connection.destroy();
+        }
+        connection = await jVoiceChannel(lastMessage);
+        if (!connection) {
+          throw new Error('Failed to reconnect to voice channel');
+        }
+        player = createAudioPlayer();
+        connection.subscribe(player);
+      } catch (reconnectError) {
+        console.error('Failed to reconnect:', reconnectError);
+        return; // Exit the function if reconnection fails
+      }
+    }
+
+    // Move to the next song
     currentIndex = (currentIndex + 1) % queue.length;
     return playSong(); // Try playing the next song
   }
