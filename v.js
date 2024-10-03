@@ -8,7 +8,7 @@ const { exec } = require('child_process');
 const { PrismMedia } = require('prism-media');
 const { Client, GatewayIntentBits } = require('discord.js');
 
-const { ytdl } = require('ytdl-core');
+const ytdl = require('ytdl-core');
 const play = require('play-dl');
 const ytpl = require('ytpl');
 
@@ -108,28 +108,27 @@ client.on('messageCreate', async (message) => {
 });
 
 // Play a song from the queue
-async function playSong(url) {
-  try {
-    // Download the audio using ytdl-core or other methods
-    const stream = await ytdl(url, { filter: 'audioonly' });
+const play = require('play-dl');
 
-    // Create a PrismMedia instance
-    const prism = new PrismMedia();
-
-    // Transcode the audio using FFmpeg
-    const transcodedStream = prism.ffmpeg(stream, {
-      format: 'mp3',
-      audioFrequency: 48000,
-      audioChannels: 2
-    });
-
-    // Create a Discord audio resource
-    const resource = createAudioResource(transcodedStream);
-
-    // Play the resource using your Discord.js voice connection
+async function playSong() {
+  if (queue.length === 0) {
+    console.log('Queue is empty');
+    return;
   }
 
-  catch (error) {
+  try {
+    const song = queue[currentIndex];
+    console.log(`Playing: ${song.title}`);
+
+    const stream = await play.stream(song.url);
+    const resource = createAudioResource(stream.stream, {
+      inputType: stream.type
+    });
+
+    player.play(resource);
+
+    await entersState(player, AudioPlayerStatus.Playing, 5_000);
+  } catch (error) {
     console.error('Error in playSong function:', error);
     currentIndex = (currentIndex + 1) % queue.length;
     return playSong(); // Try playing the next song
@@ -138,12 +137,16 @@ async function playSong(url) {
 
 
 // Load playlist function
+const play = require('play-dl');
+
 async function loadPlaylist(message, playlistUrl) {
   try {
-    const playlist = await ytpl(playlistUrl);
-    queue = playlist.items.map(item => ({
-      title: item.title,
-      url: item.url,
+    const playlist = await play.playlist_info(playlistUrl);
+    const videos = await playlist.all_videos();
+
+    queue = videos.map(video => ({
+      title: video.title,
+      url: video.url,
     }));
 
     message.channel.send(`Loaded ${queue.length} songs from the playlist.`);
