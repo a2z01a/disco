@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
 const { createAudioPlayer, createAudioResource, StreamType, AudioPlayerStatus, VoiceConnectionStatus, joinVoiceChannel, entersState, getVoiceConnection } = require('@discordjs/voice');
 
+
 const ytdl = require('ytdl-core');
 const ytpl = require('ytpl');
 const play = require('play-dl');
@@ -27,7 +28,10 @@ client.once('ready', () => {
   console.log('Bot is ready!');
 });
 
-async function joinVoiceChannel(message) {
+let player;
+let connection;
+
+async function jVoiceChannel(message) {
   const voiceChannel = message.member.voice.channel;
   if (!voiceChannel) {
     message.reply("You need to be in a voice channel first!");
@@ -77,7 +81,6 @@ client.on('voiceStateUpdate', (oldState, newState) => {
   }
 });
 
-
 async function playSong() {
   try {
     if (queue.length === 0) {
@@ -116,7 +119,7 @@ async function loadPlaylist(message, playlistUrl) {
 
     message.channel.send(`Loaded ${queue.length} songs from the playlist.`);
     
-    connection = await joinVoiceChannel(message);
+    connection = await jVoiceChannel(message);
     if (!connection) return;
 
     await playSong();
@@ -161,6 +164,32 @@ async function previousSong(message) {
     message.channel.send('An error occurred while going to the previous song.');
   }
 }
+
+player.on(AudioPlayerStatus.Playing, () => {
+  console.log('The audio player has started playing!');
+});
+
+player.on(AudioPlayerStatus.Idle, () => {
+  console.log('The audio player has become idle.');
+});
+
+connection.on(VoiceConnectionStatus.Ready, () => {
+  console.log('The connection has entered the Ready state - ready to play audio!');
+});
+
+connection.on(VoiceConnectionStatus.Disconnected, async (oldState, newState) => {
+  console.log('Connection disconnected');
+  try {
+    await Promise.race([
+      entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
+      entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+    ]);
+    // Seems to be reconnecting to a new channel - ignore disconnect
+  } catch (error) {
+    // Seems to be a real disconnect which SHOULDN'T be recovered from
+    connection.destroy();
+  }
+});
 
 player.on(AudioPlayerStatus.Playing, () => {
   console.log('The audio player has started playing!');
