@@ -4,6 +4,7 @@ const {
   VoiceConnectionStatus, joinVoiceChannel, entersState 
 } = require('@discordjs/voice');
 const { exec } = require('child_process');
+const { ytdl } = require('ytdl-core');
 const { PrismMedia } = require('prism-media');
 const { Client, GatewayIntentBits } = require('discord.js');
 
