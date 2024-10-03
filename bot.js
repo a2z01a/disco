@@ -28,9 +28,6 @@ client.once('ready', () => {
   console.log('Bot is ready!');
 });
 
-let player;
-let connection;
-
 async function jVoiceChannel(message) {
   const voiceChannel = message.member.voice.channel;
   if (!voiceChannel) {
