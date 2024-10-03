@@ -186,13 +186,4 @@ async function previousSong(message) {
   }
 }
 
-connection.on(VoiceConnectionStatus.Disconnected, async (oldState, newState) => {
-  console.error('Disconnected from voice channel.');
-  try {
-    await entersState(connection, VoiceConnectionStatus.Connecting, 5_000);
-  } catch (error) {
-    console.error('Reconnection attempt failed:', error);
-    connection.destroy();
-  }
-});
 client.login(process.env.DISCORD_BOT_TOKEN);
