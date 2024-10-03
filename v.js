@@ -122,7 +122,7 @@ async function playSong() {
 
     stream.stdout.on('data', (data) => {
       const resource = createAudioResource(data, {
-        inputType: AudioResourceType.Arbitrary, // Use AudioResourceType
+        // inputType: AudioResourceType.Arbitrary, // Use AudioResourceType
         inlineVolume: true
       });
       resource.volume.setVolume(1); // Set the volume to 100%
