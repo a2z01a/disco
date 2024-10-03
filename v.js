@@ -1,10 +1,11 @@
 require('dotenv').config();
-const { exec } = require('child_process');
-const { Client, GatewayIntentBits } = require('discord.js');
 const { 
   createAudioPlayer, createAudioResource, AudioPlayerStatus, 
   VoiceConnectionStatus, joinVoiceChannel, entersState 
 } = require('@discordjs/voice');
+const { exec } = require('child_process');
+const { Client, GatewayIntentBits } = require('discord.js');
+
 
 const play = require('play-dl');
 const ytpl = require('ytpl');
@@ -115,33 +116,26 @@ async function playSong() {
     const song = queue[currentIndex];
     console.log(`Preparing to play: ${song.title}`);
 
-    const stream = await play.stream(song.url);
-    if (!stream) {
-      console.error('Stream could not be created for this song.');
-      return;
-    }
+    // Use yt-dlp to download the stream
+    const ytDlpCommand = `yt-dlp --username oauth2 --password '' -f bestaudio -o - ${song.url}`;
+    const stream = exec(ytDlpCommand, { shell: true });
 
-    const resource = createAudioResource(stream.stream, { 
-      inputType: StreamType.Arbitrary,
-      inlineVolume: true
+    stream.stdout.on('data', (data) => {
+      const resource = createAudioResource(data); // Removed StreamType
+      resource.volume.setVolume(1); // Set the volume to 100%
+      player.play(resource);
+      console.log(`Now playing: ${song.title}`);
     });
-    resource.volume.setVolume(1); // Set the volume to 100%
 
-    player.play(resource);
-    console.log(`Now playing: ${song.title}`);
+    stream.stderr.on('data', (error) => {
+      console.error('Error streaming audio:', error);
+    });
   } catch (error) {
     console.error('Error in playSong function:', error);
     currentIndex = (currentIndex + 1) % queue.length;
-
-    // Check if the next index is valid before trying to play the next song
-    if (currentIndex < queue.length) {
-      await playSong(); // Try playing the next song only if there's a valid next song
-    } else {
-      console.log('No more songs in the queue.');
-    }
+    return playSong(); // Try playing the next song
   }
 }
-
 
 
 // Load playlist function
