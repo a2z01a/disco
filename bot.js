@@ -50,20 +50,6 @@ client.on('messageCreate', async message => {
   }
 });
 
-  if (!message.content.startsWith(prefix) || message.author.bot) return;
-
-  const args = message.content.slice(prefix.length).trim().split(/ +/);
-  const command = args.shift().toLowerCase();
-
-  if (command === 'play') {
-    await loadPlaylist(message, args[0]);
-  } else if (command === 'skip') {
-    skipSong(message);
-  } else if (command === 'previous') {
-    previousSong(message);
-  }
-});
-
 client.on('voiceStateUpdate', (oldState, newState) => {
   // Check if the bot is in a voice channel
   if (!voiceChannelId) return;
@@ -74,11 +60,11 @@ client.on('voiceStateUpdate', (oldState, newState) => {
   // Count members in the voice channel (excluding bots)
   const memberCount = channel.members.filter(member => !member.user.bot).size;
 
-  if (memberCount > 0 && player.state.status === AudioPlayerStatus.Paused) {
+  if (memberCount > 0 && player && player.state.status === AudioPlayerStatus.Paused) {
     // Resume playback if there are members and the player is paused
     player.unpause();
     console.log('Resumed playback');
-  } else if (memberCount === 0 && player.state.status === AudioPlayerStatus.Playing) {
+  } else if (memberCount === 0 && player && player.state.status === AudioPlayerStatus.Playing) {
     // Pause playback if there are no members and the player is playing
     player.pause();
     console.log('Paused playback');
@@ -139,11 +125,6 @@ async function playSong() {
     
     player.play(resource);
     console.log(`Now playing: ${song.title}`);
-
-    player.once(AudioPlayerStatus.Idle, () => {
-      currentIndex = (currentIndex + 1) % queue.length;
-      playSong().catch(console.error);
-    });
 
   } catch (error) {
     console.error('Error in playSong function:', error);
