@@ -36,17 +36,17 @@ client.on('messageCreate', async message => {
     return message.reply("You need to be in a voice channel to use this command!");
   }
 
-  if (command === 'play') {
-    try {
+  try {
+    if (command === 'play') {
       await loadPlaylist(message, args[0]);
-    } catch (error) {
-      console.error('Error in play command:', error);
-      message.reply('An error occurred while trying to play the playlist.');
+    } else if (command === 'skip') {
+      await skipSong(message);
+    } else if (command === 'previous') {
+      await previousSong(message);
     }
-  } else if (command === 'skip') {
-    skipSong(message);
-  } else if (command === 'previous') {
-    previousSong(message);
+  } catch (error) {
+    console.error(`Error executing command ${command}:`, error);
+    message.reply('An error occurred while executing the command.');
   }
 });
 
@@ -152,22 +152,32 @@ async function playSong() {
   }
 }
 
-function skipSong(message) {
+async function skipSong(message) {
   if (queue.length === 0) {
     return message.channel.send('The queue is empty.');
   }
   currentIndex = (currentIndex + 1) % queue.length;
-  playSong();
-  message.channel.send(`Skipped to the next song: ${queue[currentIndex].title}`);
+  try {
+    await playSong();
+    message.channel.send(`Skipped to the next song: ${queue[currentIndex].title}`);
+  } catch (error) {
+    console.error('Error in skipSong:', error);
+    message.channel.send('An error occurred while skipping the song.');
+  }
 }
 
-function previousSong(message) {
+async function previousSong(message) {
   if (queue.length === 0) {
     return message.channel.send('The queue is empty.');
   }
   currentIndex = (currentIndex - 1 + queue.length) % queue.length;
-  playSong();
-  message.channel.send(`Went back to the previous song: ${queue[currentIndex].title}`);
+  try {
+    await playSong();
+    message.channel.send(`Went back to the previous song: ${queue[currentIndex].title}`);
+  } catch (error) {
+    console.error('Error in previousSong:', error);
+    message.channel.send('An error occurred while going to the previous song.');
+  }
 }
 
 client.login(process.env.DISCORD_BOT_TOKEN);
