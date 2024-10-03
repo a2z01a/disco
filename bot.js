@@ -1,12 +1,13 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
-const { createAudioPlayer, createAudioResource, StreamType, AudioPlayerStatus, VoiceConnectionStatus, joinVoiceChannel, entersState, getVoiceConnection } = require('@discordjs/voice');
+const { 
+  createAudioPlayer, createAudioResource, AudioPlayerStatus, 
+  VoiceConnectionStatus, joinVoiceChannel, entersState, 
+  getVoiceConnection 
+} = require('@discordjs/voice');
 
-
-const ytdl = require('ytdl-core');
-const ytpl = require('ytpl');
 const play = require('play-dl');
-
+const ytpl = require('ytpl');
 
 const client = new Client({
   intents: [
@@ -28,6 +29,7 @@ client.once('ready', () => {
   console.log('Bot is ready!');
 });
 
+// Function to join the voice channel
 async function jVoiceChannel(message) {
   const voiceChannel = message.member.voice.channel;
   if (!voiceChannel) {
@@ -47,6 +49,23 @@ async function jVoiceChannel(message) {
     if (!player) {
       player = createAudioPlayer();
       connection.subscribe(player);
+
+      // Add error handling for the player
+      player.on('error', (error) => {
+        console.error('Error:', error.message);
+        console.error('Error Stack:', error.stack);
+        playSong().catch(console.error);
+      });
+
+      player.on(AudioPlayerStatus.Playing, () => {
+        console.log('The audio player has started playing!');
+      });
+
+      player.on(AudioPlayerStatus.Idle, () => {
+        console.log('The audio player has become idle.');
+        currentIndex = (currentIndex + 1) % queue.length;
+        playSong().catch(console.error);
+      });
     }
 
     return connection;
@@ -57,6 +76,7 @@ async function jVoiceChannel(message) {
   }
 }
 
+// Handle voice state updates (for pausing/resuming based on member count)
 client.on('voiceStateUpdate', (oldState, newState) => {
   // Check if the bot is in a voice channel
   if (!voiceChannelId) return;
@@ -68,16 +88,15 @@ client.on('voiceStateUpdate', (oldState, newState) => {
   const memberCount = channel.members.filter(member => !member.user.bot).size;
 
   if (memberCount > 0 && player && player.state.status === AudioPlayerStatus.Paused) {
-    // Resume playback if there are members and the player is paused
     player.unpause();
     console.log('Resumed playback');
   } else if (memberCount === 0 && player && player.state.status === AudioPlayerStatus.Playing) {
-    // Pause playback if there are no members and the player is playing
     player.pause();
     console.log('Paused playback');
   }
 });
 
+// Play a song from the queue
 async function playSong() {
   try {
     if (queue.length === 0) {
@@ -97,7 +116,6 @@ async function playSong() {
 
     player.play(resource);
     console.log(`Now playing: ${song.title}`);
-
   } catch (error) {
     console.error('Error in playSong function:', error);
     currentIndex = (currentIndex + 1) % queue.length;
@@ -105,7 +123,7 @@ async function playSong() {
   }
 }
 
-// Modify your loadPlaylist function:
+// Load playlist function
 async function loadPlaylist(message, playlistUrl) {
   try {
     const playlist = await ytpl(playlistUrl);
@@ -126,14 +144,7 @@ async function loadPlaylist(message, playlistUrl) {
   }
 }
 
-// Add error handling for the player
-player.on('error', (error) => {
-  console.error('Error:', error.message);
-  console.error('Error Stack:', error.stack);
-  playSong().catch(console.error);
-});
-
-
+// Skip to the next song
 async function skipSong(message) {
   if (queue.length === 0) {
     return message.channel.send('The queue is empty.');
@@ -148,6 +159,7 @@ async function skipSong(message) {
   }
 }
 
+// Go back to the previous song
 async function previousSong(message) {
   if (queue.length === 0) {
     return message.channel.send('The queue is empty.');
@@ -161,57 +173,5 @@ async function previousSong(message) {
     message.channel.send('An error occurred while going to the previous song.');
   }
 }
-
-player.on(AudioPlayerStatus.Playing, () => {
-  console.log('The audio player has started playing!');
-});
-
-player.on(AudioPlayerStatus.Idle, () => {
-  console.log('The audio player has become idle.');
-});
-
-connection.on(VoiceConnectionStatus.Ready, () => {
-  console.log('The connection has entered the Ready state - ready to play audio!');
-});
-
-connection.on(VoiceConnectionStatus.Disconnected, async (oldState, newState) => {
-  console.log('Connection disconnected');
-  try {
-    await Promise.race([
-      entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
-      entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
-    ]);
-    // Seems to be reconnecting to a new channel - ignore disconnect
-  } catch (error) {
-    // Seems to be a real disconnect which SHOULDN'T be recovered from
-    connection.destroy();
-  }
-});
-
-player.on(AudioPlayerStatus.Playing, () => {
-  console.log('The audio player has started playing!');
-});
-
-player.on(AudioPlayerStatus.Idle, () => {
-  console.log('The audio player has become idle.');
-});
-
-connection.on(VoiceConnectionStatus.Ready, () => {
-  console.log('The connection has entered the Ready state - ready to play audio!');
-});
-
-connection.on(VoiceConnectionStatus.Disconnected, async (oldState, newState) => {
-  console.log('Connection disconnected');
-  try {
-    await Promise.race([
-      entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
-      entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
-    ]);
-    // Seems to be reconnecting to a new channel - ignore disconnect
-  } catch (error) {
-    // Seems to be a real disconnect which SHOULDN'T be recovered from
-    connection.destroy();
-  }
-});
 
 client.login(process.env.DISCORD_BOT_TOKEN);
