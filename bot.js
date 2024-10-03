@@ -6,8 +6,6 @@ const ytdl = require('ytdl-core');
 const ytpl = require('ytpl');
 const play = require('play-dl');
 
-let player;
-let connection;
 
 const client = new Client({
   intents: [
