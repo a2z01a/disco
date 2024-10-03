@@ -121,7 +121,10 @@ async function playSong() {
     const stream = exec(ytDlpCommand, { shell: true });
 
     stream.stdout.on('data', (data) => {
-      const resource = createAudioResource(data); // Removed StreamType
+      const resource = createAudioResource(data, {
+        inputType: AudioResourceType.Arbitrary, // Use AudioResourceType
+        inlineVolume: true
+      });
       resource.volume.setVolume(1); // Set the volume to 100%
       player.play(resource);
       console.log(`Now playing: ${song.title}`);
