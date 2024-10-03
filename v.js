@@ -108,7 +108,6 @@ client.on('messageCreate', async (message) => {
 });
 
 // Play a song from the queue
-const play = require('play-dl');
 
 async function playSong() {
   if (queue.length === 0) {
@@ -137,7 +136,6 @@ async function playSong() {
 
 
 // Load playlist function
-const play = require('play-dl');
 
 async function loadPlaylist(message, playlistUrl) {
   try {
