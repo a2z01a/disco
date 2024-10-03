@@ -3,7 +3,7 @@ const {
   createAudioPlayer, createAudioResource, AudioPlayerStatus, 
   VoiceConnectionStatus, joinVoiceChannel, entersState 
 } = require('@discordjs/voice');
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
 
 const { PrismMedia } = require('prism-media');
 const { Client, GatewayIntentBits } = require('discord.js');
@@ -123,21 +123,16 @@ async function playSong() {
     const song = queue[currentIndex];
     console.log(`Attempting to play: ${song.title}`);
 
-    const stream = await play.stream(song.url);
-    const resource = createAudioResource(stream.stream, {
-      inputType: stream.type
-    });
+    const ytDlp = spawn('yt-dlp', [
+      '-o', '-',
+      '-f', 'bestaudio',
+      song.url
+    ]);
 
+    const resource = createAudioResource(ytDlp.stdout);
     player.play(resource);
 
-    try {
-      // Increase the timeout to 30 seconds
-      await entersState(player, AudioPlayerStatus.Playing, 30_000);
-      console.log(`Now playing: ${song.title}`);
-    } catch (error) {
-      console.error('Error while waiting for the player to enter Playing state:', error);
-      throw error; // Re-throw the error to be caught by the outer try-catch
-    }
+    // ... rest of the function
   } catch (error) {
     console.error('Error in playSong function:', error);
     
