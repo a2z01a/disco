@@ -3,6 +3,7 @@ const { Client, GatewayIntentBits } = require('discord.js');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, NoSubscriberBehavior, AudioPlayerStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
 const ytpl = require('ytpl');
+const play = require('play-dl');
 
 const client = new Client({
   intents: [
@@ -25,6 +26,30 @@ client.once('ready', () => {
 });
 
 client.on('messageCreate', async message => {
+  if (!message.content.startsWith(prefix) || message.author.bot) return;
+
+  const args = message.content.slice(prefix.length).trim().split(/ +/);
+  const command = args.shift().toLowerCase();
+
+  // Check if the user is in a voice channel
+  if (!message.member.voice.channel) {
+    return message.reply("You need to be in a voice channel to use this command!");
+  }
+
+  if (command === 'play') {
+    try {
+      await loadPlaylist(message, args[0]);
+    } catch (error) {
+      console.error('Error in play command:', error);
+      message.reply('An error occurred while trying to play the playlist.');
+    }
+  } else if (command === 'skip') {
+    skipSong(message);
+  } else if (command === 'previous') {
+    previousSong(message);
+  }
+});
+
   if (!message.content.startsWith(prefix) || message.author.bot) return;
 
   const args = message.content.slice(prefix.length).trim().split(/ +/);
@@ -88,31 +113,42 @@ async function loadPlaylist(message, playlistUrl) {
       connection.subscribe(player);
       player.on(AudioPlayerStatus.Idle, () => {
         currentIndex = (currentIndex + 1) % queue.length;
-        playSong();
+        playSong().catch(console.error);
       });
     }
 
-    playSong();
+    await playSong();
   } catch (error) {
-    console.error(error);
-    message.channel.send('An error occurred while loading the playlist.');
+    console.error('Error in loadPlaylist function:', error);
+    message.channel.send('An error occurred while loading the playlist. Please try again.');
   }
 }
 
-function playSong() {
-  const song = queue[currentIndex];
-  const resource = createAudioResource(ytdl(song.url, { filter: 'audioonly' }));
-  player.play(resource);
-  console.log(`Now playing: ${song.title}`);
-
-  // Check if the channel is empty and pause if so
-  const channel = client.channels.cache.get(voiceChannelId);
-  if (channel) {
-    const memberCount = channel.members.filter(member => !member.user.bot).size;
-    if (memberCount === 0) {
-      player.pause();
-      console.log('Paused playback due to empty channel');
+async function playSong() {
+  try {
+    if (queue.length === 0) {
+      console.log('Queue is empty. Stopping playback.');
+      return;
     }
+
+    const song = queue[currentIndex];
+    console.log(`Preparing to play: ${song.title}`);
+
+    const stream = await play.stream(song.url);
+    const resource = createAudioResource(stream.stream, { inputType: stream.type });
+    
+    player.play(resource);
+    console.log(`Now playing: ${song.title}`);
+
+    player.once(AudioPlayerStatus.Idle, () => {
+      currentIndex = (currentIndex + 1) % queue.length;
+      playSong().catch(console.error);
+    });
+
+  } catch (error) {
+    console.error('Error in playSong function:', error);
+    currentIndex = (currentIndex + 1) % queue.length;
+    return playSong(); // Try playing the next song
   }
 }
 
