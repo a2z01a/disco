@@ -26,18 +26,20 @@ class MusicBot {
 
   async joinVoiceChannel() {
     try {
-      const channel = await this.client.channels.fetch(this.channelId);
-      if (!channel || channel.type !== 'GUILD_VOICE') {
-        throw new Error('Invalid voice channel');
-      }
+        const channel = await this.client.channels.fetch(this.channelId);
+        console.log(`Channel Type: ${channel?.type}`); // Log channel type
+        if (!channel || channel.type !== 'GUILD_VOICE') {
+            console.error('Channel not found or is not a voice channel.');
+            throw new Error('Invalid voice channel');
+        }
 
-      this.connection = joinVoiceChannel({
-        channelId: this.channelId,
-        guildId: channel.guild.id,
-        adapterCreator: channel.guild.voiceAdapterCreator,
-      });
+        this.connection = joinVoiceChannel({
+            channelId: this.channelId,
+            guildId: channel.guild.id,
+            adapterCreator: channel.guild.voiceAdapterCreator,
+        });
 
-      await entersState(this.connection, VoiceConnectionStatus.Ready, 30_000);
+        await entersState(this.connection, VoiceConnectionStatus.Ready, 30_000);
       
       if (!this.player) {
         this.player = createAudioPlayer();
