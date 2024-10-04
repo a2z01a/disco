@@ -116,39 +116,39 @@ class MusicBot {
   }
 
   async addToQueue(message, query) {
-    try {
-      let songInfo;
-      if (query.startsWith('http')) {
-        songInfo = await play.video_info(query);
-      } else {
-        const searchResult = await play.search(query, { limit: 1 });
-        if (searchResult.length === 0) {
-          return message.reply('No results found for the given search term.');
-        }
-        songInfo = searchResult[0];
+  try {
+    let songInfo;
+    if (query.startsWith('http')) {
+      songInfo = await play.video_info(query);
+    } else {
+      const searchResult = await play.search(query, { limit: 1 });
+      if (searchResult.length === 0) {
+        return message.reply('No results found for the given search term.');
       }
-
-      const song = {
-        title: songInfo.title,
-        url: songInfo.url,
-      };
-
-      const existingIndex = this.queue.findIndex(s => s.url === song.url);
-      if (existingIndex !== -1) {
-        this.queue.splice(existingIndex, 1);
-      }
-      this.queue.push(song);
-
-      message.channel.send(`Added to queue: ${song.title}`);
-
-      if (this.queue.length === 1) {
-        this.playSong();
-      }
-    } catch (error) {
-      console.error('Error adding song to queue:', error);
-      message.channel.send('An error occurred while adding the song to the queue.');
+      songInfo = searchResult[0];
     }
+
+    const song = {
+      title: songInfo.title,
+      url: songInfo.url,
+    };
+
+    const existingIndex = this.queue.findIndex(s => s.url === song.url);
+    if (existingIndex !== -1) {
+      this.queue.splice(existingIndex, 1);
+    }
+    this.queue.push(song);
+
+    message.channel.send(`Added to queue: ${song.title}`);
+
+    if (this.queue.length === 1) {
+      await this.playSong();
+    }
+  } catch (error) {
+    console.error('Error adding song to queue:', error);
+    message.channel.send('An error occurred while adding the song to the queue.');
   }
+}
 
   async loadPlaylist(message, playlistUrl) {
     try {
@@ -173,30 +173,46 @@ class MusicBot {
   }
 
   async playSong() {
-    if (this.queue.length === 0) {
-      console.log('Queue is empty');
-      return;
-    }
+  if (this.queue.length === 0) {
+    console.log('Queue is empty');
+    return;
+  }
 
-    try {
-      const song = this.queue[this.currentIndex];
-      console.log(`Attempting to play: ${song.title}`);
-
-      const ytDlp = spawn('yt-dlp', [
-        '-o', '-',
-        '-f', 'bestaudio',
-        song.url
-      ]);
-
-      const resource = createAudioResource(ytDlp.stdout);
-      this.player.play(resource);
-
-    } catch (error) {
-      console.error('Error in playSong function:', error);
-      this.currentIndex = (this.currentIndex + 1) % this.queue.length;
+  try {
+    const song = this.queue[this.currentIndex];
+    if (!song) {
+      console.log('No song found at current index, resetting to 0');
+      this.currentIndex = 0;
       return this.playSong();
     }
+
+    console.log(`Attempting to play: ${song.title}`);
+
+    const ytDlp = spawn('yt-dlp', [
+      '-o', '-',
+      '-f', 'bestaudio',
+      song.url
+    ]);
+
+    const resource = createAudioResource(ytDlp.stdout);
+    this.player.play(resource);
+
+    // Announce the currently playing song
+    const voiceChannel = await this.client.channels.fetch(this.voiceChannelId);
+    if (voiceChannel) {
+      const textChannels = voiceChannel.guild.channels.cache.filter(c => c.type === ChannelType.GuildText);
+      const firstTextChannel = textChannels.first();
+      if (firstTextChannel) {
+        firstTextChannel.send(`Now playing: ${song.title}`);
+      }
+    }
+
+  } catch (error) {
+    console.error('Error in playSong function:', error);
+    this.currentIndex = (this.currentIndex + 1) % this.queue.length;
+    return this.playSong();
   }
+}
 
   async skipSong(message) {
     if (this.queue.length === 0) {
