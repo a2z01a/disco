@@ -3,14 +3,15 @@ require('dotenv').config();
 const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-
+const { promisify } = require('util');
+const execPromise = promisify(exec);
 const { 
   createAudioPlayer, createAudioResource, AudioPlayerStatus, 
   VoiceConnectionStatus, joinVoiceChannel, entersState 
 } = require('@discordjs/voice');
 const { Client, GatewayIntentBits } = require('discord.js');
 const play = require('play-dl');
-
+const bots = new Map();
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -138,12 +139,13 @@ class MusicBot {
   }
 }
 
-  async addToQueue(message, songUrl) {
+  async addToQueue(message, query) {
     try {
-      const songInfo = await play.video_info(songUrl);
+      const { stdout } = await execPromise(`yt-dlp --get-title --get-id "${query}"`);
+      const [title, videoId] = stdout.trim().split('\n');
       const song = {
-        title: songInfo.video_details.title,
-        url: songUrl,
+        title: title,
+        url: `https://www.youtube.com/watch?v=${videoId}`,
       };
       this.queue.push(song);
       this.downloadQueue.push(song);
@@ -158,21 +160,24 @@ class MusicBot {
     }
   }
 
-  async loadPlaylist(message, playlistUrl) {
+  sync loadPlaylist(message, playlistUrl) {
     try {
-      const playlist = await play.playlist_info(playlistUrl);
-      const videos = await playlist.all_videos();
-
       const statusEmbed = await this.sendStatusEmbed(message, '📋 Loading Playlist', 'Starting to load playlist...');
+
+      const { stdout } = await execPromise(`yt-dlp --flat-playlist --get-title --get-id "${playlistUrl}"`);
+      const videos = stdout.trim().split('\n').reduce((acc, line, index) => {
+        if (index % 2 === 0) {
+          acc.push({ title: line });
+        } else {
+          acc[acc.length - 1].url = `https://www.youtube.com/watch?v=${line}`;
+        }
+        return acc;
+      }, []);
 
       for (let i = 0; i < videos.length; i++) {
         const video = videos[i];
-        const song = {
-          title: video.title,
-          url: video.url,
-        };
-        this.queue.push(song);
-        this.downloadQueue.push(song);
+        this.queue.push(video);
+        this.downloadQueue.push(video);
 
         if (i % 10 === 0 || i === videos.length - 1) {
           await statusEmbed.edit({ embeds: [new EmbedBuilder()
@@ -317,7 +322,7 @@ class MusicBot {
     }
   }
 
-const bots = new Map();
+
 
 client.once('ready', () => {
   console.log('Bot is ready!');
