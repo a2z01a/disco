@@ -263,7 +263,7 @@ class MusicBot {
   
   async downloadSong(song, statusEmbed) {
     return new Promise((resolve, reject) => {
-      const outputFile = path.join(__dirname, ${Date.now()}.%(ext)s);
+      const outputFile = path.join(__dirname, `${Date.now()}.%(ext)s`);
       const command = `yt-dlp --no-playlist --extract-audio --audio-format mp3 --audio-quality 0 --output "${outputFile}" "${song.url}"`;
       
       const process = exec(command);
