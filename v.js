@@ -32,6 +32,14 @@ client.once('ready', () => {
   console.log('Bot is ready!');
 });
 
+function isVoiceChannelEmpty(connection) {
+  if (!connection || !connection.joinConfig || !connection.joinConfig.channelId) {
+    return true;
+  }
+  const channel = client.channels.cache.get(connection.joinConfig.channelId);
+  return !channel || channel.members.size === 1; // 1 because the bot itself counts as a member
+}
+
 // Function to join the voice channel
 async function jVoiceChannel(message) {
   const voiceChannel = message.member.voice.channel;
@@ -49,36 +57,7 @@ async function jVoiceChannel(message) {
 
     await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
     
-    if (!player) {
-      player = createAudioPlayer();
-      connection.subscribe(player);
-
-      // Add error handling for the player
-      player.on('error', (error) => {
-        console.error('Playback error:', error.message);
-  console.error('Error details:', error);
-        playSong().catch(console.error);
-      });
-
-      player.on(AudioPlayerStatus.Playing, () => {
-        console.log('The audio player has started playing!');
-      });
-
-      player.on(AudioPlayerStatus.Idle, () => {
-        console.log('The audio player has become idle.');
-        currentIndex = (currentIndex + 1) % queue.length;
-        playSong().catch(console.error);
-      });
-    }
-
-    return connection;
-  } catch (error) {
-    console.error('Error joining voice channel:', error);
-    message.reply('Failed to join the voice channel. Please try again.');
-    return null;
-  }
-   connection.on(VoiceConnectionStatus.Ready, () => {
-    // Check every 5 seconds if the channel is empty
+    // Add this interval
     setInterval(() => {
       if (isVoiceChannelEmpty(connection)) {
         console.log('Voice channel is empty. Disconnecting...');
@@ -88,7 +67,13 @@ async function jVoiceChannel(message) {
         currentIndex = 0;
       }
     }, 5000);
-  });
+
+    return connection;
+  } catch (error) {
+    console.error('Error joining voice channel:', error);
+    message.reply('Failed to join the voice channel. Please try again.');
+    return null;
+  }
 }
 
 // Message handler for commands
@@ -121,17 +106,6 @@ client.on('messageCreate', async (message) => {
     console.log('Going back to the previous song...');
     await previousSong(message);
   }
-  if (command === 'disconnect') {
-    if (connection) {
-      connection.destroy();
-      player = null;
-      queue = [];
-      currentIndex = 0;
-      message.channel.send('Disconnected from voice channel.');
-    } else {
-      message.channel.send('Not currently in a voice channel.');
-    }
-  }
 });
 
 // Play a song from the queue
@@ -142,8 +116,8 @@ async function playSong() {
     return;
   }
 
-  if (isVoiceChannelEmpty(connection)) {
-    console.log('Voice channel is empty. Stopping playback.');
+  if (!connection || isVoiceChannelEmpty(connection)) {
+    console.log('Voice channel is empty or connection is not established. Stopping playback.');
     return;
   }
 
@@ -160,8 +134,20 @@ async function playSong() {
     const resource = createAudioResource(ytDlp.stdout);
     player.play(resource);
 
-    // ... rest of the function
-  } catch (error) {
+  try {
+    const song = queue[currentIndex];
+    console.log(`Attempting to play: ${song.title}`);
+
+    const ytDlp = spawn('yt-dlp', [
+      '-o', '-',
+      '-f', 'bestaudio',
+      song.url
+    ]);
+
+    const resource = createAudioResource(ytDlp.stdout);
+    player.play(resource);
+
+      } catch (error) {
     console.error('Error in playSong function:', error);
     
     // Check if the error is due to an abort
@@ -248,5 +234,4 @@ async function previousSong(message) {
 }
 
 client.login(process.env.DISCORD_BOT_TOKEN);
-
 
