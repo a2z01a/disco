@@ -4,14 +4,14 @@ const {
   VoiceConnectionStatus, joinVoiceChannel, entersState 
 } = require('@discordjs/voice');
 const { spawn } = require('child_process');
-const { Client, GatewayIntentBits, ChannelType } = require('discord.js'); // Added ChannelType for channel type checking
+const { Client, GatewayIntentBits } = require('discord.js');
 const play = require('play-dl');
 
 class MusicBot {
-  constructor(client, name, channelId) {
+  constructor(client, name, voiceChannelId) {
     this.client = client;
     this.name = name;
-    this.channelId = channelId;
+    this.voiceChannelId = voiceChannelId;
     this.prefix = '!';
     this.queue = [];
     this.currentIndex = 0;
@@ -26,23 +26,17 @@ class MusicBot {
 
   async joinVoiceChannel() {
     try {
-      const channel = await this.client.channels.fetch(this.channelId);
-      
-      // Log the channel details for debugging
-      console.log("Fetched channel:", channel);
-      
-      // Make sure we are working with a valid voice channel
-      if (!channel || channel.type !== ChannelType.GuildVoice) {
+      const channel = await this.client.channels.fetch(this.voiceChannelId);
+      if (!channel || channel.type !== 2) { // 2 is the value for GUILD_VOICE
         throw new Error('Invalid voice channel');
       }
 
       this.connection = joinVoiceChannel({
-        channelId: this.channelId,
+        channelId: this.voiceChannelId,
         guildId: channel.guild.id,
         adapterCreator: channel.guild.voiceAdapterCreator,
       });
 
-      // Wait until the voice connection is ready
       await entersState(this.connection, VoiceConnectionStatus.Ready, 30_000);
       
       if (!this.player) {
@@ -62,7 +56,6 @@ class MusicBot {
         });
       }
 
-      // Check if the voice channel is empty every 5 seconds
       setInterval(() => this.checkVoiceChannel(), 5000);
 
       console.log(`${this.name}: Successfully joined voice channel`);
@@ -74,7 +67,7 @@ class MusicBot {
   }
 
   async checkVoiceChannel() {
-    const channel = await this.client.channels.fetch(this.channelId);
+    const channel = await this.client.channels.fetch(this.voiceChannelId);
     if (channel && channel.members.size === 1) {
       if (!this.isPaused) {
         this.player.pause();
@@ -238,28 +231,27 @@ client.once('ready', () => {
 });
 
 client.on('messageCreate', async (message) => {
-  if (message.channel.type !== ChannelType.GuildText) return;
-
-  const associatedVoiceChannel = message.channel.guild.channels.cache
-    .find(channel => channel.type === ChannelType.GuildVoice && channel.name === message.channel.name);
+  if (message.channel.type !== 0) return; // 0 is the value for GUILD_TEXT
   
-  if (associatedVoiceChannel) {
-    const bot = bots.get(associatedVoiceChannel.id);
-    if (bot && message.content.startsWith(bot.prefix)) {
-      await bot.handleCommand(message);
-    }
+  const bot = Array.from(bots.values()).find(bot => 
+    message.member && message.member.voice.channelId === bot.voiceChannelId
+  );
+  
+  if (bot && message.content.startsWith(bot.prefix)) {
+    await bot.handleCommand(message);
   }
 });
 
+
 function initializeBots() {
   const botConfigs = [
-    { name: 'PlayBot', channelId: '1291366977667076170' }, // Make sure this is correct
+    { name: 'PlayBot', voiceChannelId: '1291366977667076170' }, // Make sure this is correct
   ];
 
   botConfigs.forEach(config => {
-    const bot = new MusicBot(client, config.name, config.channelId);
+    const bot = new MusicBot(client, config.name, config.voiceChannelId);
     bot.initialize();
-    bots.set(config.channelId, bot);
+    bots.set(config.voiceChannelId, bot);
   });
 }
 
