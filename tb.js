@@ -243,7 +243,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
 // Initialize bots for specific rooms
 // Replace these with your actual room IDs
 const roomConfigs = [
-  { name: 'Trap Music', guildId: 'your_guild_id', voiceChannelId: 'voice_channel_id', textChannelId: 'text_channel_id' },
+  { name: '「🗣」Voice', guildId: '1284917135595798709', voiceChannelId: '1291366977667076170', textChannelId: '1291366977667076170' },
   // Add more room configurations as needed
 ];
 
