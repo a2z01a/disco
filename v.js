@@ -156,20 +156,7 @@ async function playSong() {
     const resource = createAudioResource(ytDlp.stdout);
     player.play(resource);
 
-  try {
-    const song = queue[currentIndex];
-    console.log(`Attempting to play: ${song.title}`);
-
-    const ytDlp = spawn('yt-dlp', [
-      '-o', '-',
-      '-f', 'bestaudio',
-      song.url
-    ]);
-
-    const resource = createAudioResource(ytDlp.stdout);
-    player.play(resource);
-
-      } catch (error) {
+  } catch (error) {
     console.error('Error in playSong function:', error);
     
     // Check if the error is due to an abort
@@ -256,4 +243,3 @@ async function previousSong(message) {
 }
 
 client.login(process.env.DISCORD_BOT_TOKEN);
-
