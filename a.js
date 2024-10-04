@@ -26,20 +26,18 @@ class MusicBot {
 
   async joinVoiceChannel() {
     try {
-        const channel = await this.client.channels.fetch(this.channelId);
-        console.log(`Channel Type: ${channel?.type}`); // Log channel type
-        if (!channel || channel.type !== 'GUILD_VOICE') {
-            console.error('Channel not found or is not a voice channel.');
-            throw new Error('Invalid voice channel');
-        }
+      const channel = await this.client.channels.fetch(this.channelId);
+      if (!channel || channel.type !== 'GUILD_VOICE') {
+        throw new Error('Invalid voice channel');
+      }
 
-        this.connection = joinVoiceChannel({
-            channelId: this.channelId,
-            guildId: channel.guild.id,
-            adapterCreator: channel.guild.voiceAdapterCreator,
-        });
+      this.connection = joinVoiceChannel({
+        channelId: this.channelId,
+        guildId: channel.guild.id,
+        adapterCreator: channel.guild.voiceAdapterCreator,
+      });
 
-        await entersState(this.connection, VoiceConnectionStatus.Ready, 30_000);
+      await entersState(this.connection, VoiceConnectionStatus.Ready, 30_000);
       
       if (!this.player) {
         this.player = createAudioPlayer();
@@ -222,13 +220,13 @@ client.on('messageCreate', async (message) => {
 
 function initializeBots() {
   const botConfigs = [
-    { name: 'PlayBot', voiceChannelId: '1291366977667076170' },
+    { name: 'PlayBot', channelId: '1291366977667076170' },
   ];
 
-  botConfigs.forEach(async (config) => {
-    const bot = new MusicBot(client, config.name, config.voiceChannelId);
-    await bot.initialize();
-    bots.set(config.name, bot);
+  botConfigs.forEach(config => {
+    const bot = new MusicBot(client, config.name, config.channelId);
+    bot.initialize();
+    bots.set(config.channelId, bot);
   });
 }
 
