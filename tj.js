@@ -251,7 +251,7 @@ client.on('messageCreate', async (message) => {
 
 function initializeBots() {
   const botConfigs = [
-    { name: 'PlayBot', voiceChannelId: 'YOUR_VOICE_CHANNEL_ID' },
+    { name: 'PlayBot', voiceChannelId: '1291366977667076170' },
     // Add more bot configurations as needed
   ];
 
