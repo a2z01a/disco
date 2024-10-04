@@ -1,4 +1,5 @@
 require('dotenv').config();
+
 const { 
   createAudioPlayer, createAudioResource, AudioPlayerStatus, 
   VoiceConnectionStatus, joinVoiceChannel, entersState 
@@ -103,13 +104,13 @@ class MusicBot {
       this.showQueue(message);
     }
   }
- 
- async addToQueue(message, songUrl) {
+
+  async addToQueue(message, songUrl) {
     try {
       const songInfo = await play.video_info(songUrl);
       this.queue.push({
         title: songInfo.video_details.title,
-        url: songUrl
+        url: songUrl,
       });
       message.reply(`Added to queue: ${songInfo.video_details.title}`);
       if (this.queue.length === 1) {
@@ -125,11 +126,11 @@ class MusicBot {
     try {
       const playlist = await play.playlist_info(playlistUrl);
       const videos = await playlist.all_videos();
-      
+
       videos.forEach(video => {
         this.queue.push({
           title: video.title,
-          url: video.url
+          url: video.url,
         });
       });
 
@@ -156,7 +157,7 @@ class MusicBot {
     if (this.queue.length === 0) {
       message.reply('The queue is empty.');
     } else {
-      const queueList = this.queue.map((song, index) => 
+      const queueList = this.queue.map((song, index) =>
         `${index + 1}. ${song.title}`
       ).join('\n');
       message.reply(`Current queue:\n${queueList}`);
@@ -169,7 +170,7 @@ class MusicBot {
       try {
         const stream = await play.stream(song.url);
         const resource = createAudioResource(stream.stream, {
-          inputType: stream.type
+          inputType: stream.type,
         });
         this.player.play(resource);
         console.log(`Now playing: ${song.title}`);
@@ -180,8 +181,7 @@ class MusicBot {
       }
     }
   }
- 
-
+}
 
 const client = new Client({
   intents: [
@@ -202,45 +202,19 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
   if (message.channel.type !== 0) return; // 0 is the value for GUILD_TEXT
   
-  const bot = Array.from(bots.values()).find(bot => 
+  const bot = Array.from(bots.values()).find(bot =>
     message.member && message.member.voice.channelId === bot.voiceChannelId
   );
-  
-  if (bot && message.content.startsWith(bot.prefix)) {
-    const args = message.content.slice(bot.prefix.length).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
 
-    switch (command) {
-      case 'play':
-        const songUrl = args[0];
-        if (!songUrl) {
-          return message.reply('Please provide a song URL or search term.');
-        }
-        await bot.addToQueue(message, songUrl);
-        break;
-      case 'playlist':
-        const playlistUrl = args[0];
-        if (!playlistUrl) {
-          return message.reply('Please provide a playlist URL.');
-        }
-        await bot.loadPlaylist(message, playlistUrl);
-        break;
-      case 'skip':
-        await bot.skipSong(message);
-        break;
-      case 'queue':
-        bot.showQueue(message);
-        break;
-      default:
-        message.reply('Unknown command. Available commands: play, playlist, skip, queue');
-    }
+  if (bot && message.content.startsWith(bot.prefix)) {
+    await bot.handleCommand(message);
   }
 });
 
 function initializeBots() {
   const botConfigs = [
     { name: 'Trap Music Bot', voiceChannelId: '1291366977667076170' },
-        // Add more bot configurations as needed
+    // Add more bot configurations as needed
   ];
 
   botConfigs.forEach(config => {
