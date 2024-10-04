@@ -18,7 +18,7 @@ class MusicBot {
     this.player = null;
     this.connection = null;
     this.isPaused = false;
-    this.textChannel = null; // This will store the text channel (thread) associated with the voice channel
+    this.textChannel = null; // Stores the text channel (thread) associated with the voice channel
   }
 
   async initialize() {
@@ -67,6 +67,7 @@ class MusicBot {
         });
       }
 
+      // Check if anyone is in the voice channel every 5 seconds
       setInterval(() => this.checkVoiceChannel(), 5000);
 
       console.log(`${this.name}: Successfully joined voice channel`);
@@ -88,6 +89,25 @@ class MusicBot {
     );
 
     return thread;
+  }
+
+  // Check if there are other users in the voice channel every 5 seconds
+  async checkVoiceChannel() {
+    const channel = await this.client.channels.fetch(this.voiceChannelId);
+
+    if (channel.members.size === 1) { // Only the bot is in the channel
+      if (!this.isPaused) {
+        console.log(`${this.name}: Pausing music because the bot is alone in the channel.`);
+        this.player.pause();
+        this.isPaused = true;
+      }
+    } else if (channel.members.size > 1) { // There are other users in the channel
+      if (this.isPaused) {
+        console.log(`${this.name}: Resuming music because someone joined the channel.`);
+        this.player.unpause();
+        this.isPaused = false;
+      }
+    }
   }
 
   async handleCommand(message) {
@@ -252,14 +272,13 @@ client.on('messageCreate', async (message) => {
 function initializeBots() {
   const botConfigs = [
     { name: 'PlayBot', voiceChannelId: '1291366977667076170' },
-    // Add more bot configurations as needed
   ];
 
-  botConfigs.forEach(config => {
+  botConfigs.forEach(async (config) => {
     const bot = new MusicBot(client, config.name, config.voiceChannelId);
-    bot.initialize();
-    bots.set(config.voiceChannelId, bot);
+    await bot.initialize();
+    bots.set(config.name, bot);
   });
 }
 
-client.login(process.env.DISCORD_BOT_TOKEN);
+client.login(process.env.BOT_TOKEN);
