@@ -29,7 +29,15 @@ class MusicBot {
   async initialize() {
     await this.joinVoiceChannel();
   }
+ async sendStatusEmbed(message, title, description, color = '#0099ff') {
+    const embed = new EmbedBuilder()
+      .setColor(color)
+      .setTitle(title)
+      .setDescription(description)
+      .setTimestamp();
 
+    return await message.channel.send({ embeds: [embed] });
+  }
   async joinVoiceChannel() {
     try {
       const channel = await this.client.channels.fetch(this.voiceChannelId);
@@ -95,19 +103,17 @@ class MusicBot {
     case 'play':
       const songUrl = args[0];
       if (!songUrl) {
-        return message.reply('Please provide a song URL or search term.');
+        return this.sendStatusEmbed(message, '❌ Invalid Command', 'Please provide a song URL or search term.', '#ff0000');
       }
       await this.addToQueue(message, songUrl);
-      this.processDownloadQueue(); // Add this line
       break;
 
     case 'playlist':
       const playlistUrl = args[0];
       if (!playlistUrl) {
-        return message.reply('Please provide a playlist URL.');
+        return this.sendStatusEmbed(message, '❌ Invalid Command', 'Please provide a playlist URL.', '#ff0000');
       }
       await this.loadPlaylist(message, playlistUrl);
-      this.processDownloadQueue(); // Add this line
       break;
 
     case 'skip':
@@ -115,11 +121,11 @@ class MusicBot {
       break;
 
     case 'queue':
-      this.showQueue(message);
+      await this.showQueue(message);
       break;
 
     default:
-      message.reply('Unknown command. Available commands: play, playlist, skip, queue');
+      await this.sendStatusEmbed(message, '❓ Unknown Command', 'Available commands: play, playlist, skip, queue', '#ff9900');
   }
 }
 
@@ -132,14 +138,14 @@ class MusicBot {
       };
       this.queue.push(song);
       this.downloadQueue.push(song);
-      message.reply(`Added to queue: ${song.title}`);
+      await this.sendStatusEmbed(message, '🎵 Added to Queue', `${song.title} has been added to the queue!`);
       
       if (this.queue.length === 1) {
-        this.processDownloadQueue();
+        this.processDownloadQueue(message);
       }
     } catch (error) {
       console.error('Error adding song to queue:', error);
-      message.reply('Error adding song to queue. Please try again.');
+      await this.sendStatusEmbed(message, '❌ Error', 'Error adding song to queue. Please try again.', '#ff0000');
     }
   }
 
@@ -148,120 +154,159 @@ class MusicBot {
       const playlist = await play.playlist_info(playlistUrl);
       const videos = await playlist.all_videos();
 
-      videos.forEach(video => {
+      const statusEmbed = await this.sendStatusEmbed(message, '📋 Loading Playlist', 'Starting to load playlist...');
+
+      for (let i = 0; i < videos.length; i++) {
+        const video = videos[i];
         const song = {
           title: video.title,
           url: video.url,
         };
         this.queue.push(song);
         this.downloadQueue.push(song);
-      });
 
-      message.reply(`Added ${videos.length} songs from playlist to queue.`);
+        if (i % 10 === 0 || i === videos.length - 1) {
+          await statusEmbed.edit({ embeds: [new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('📋 Loading Playlist')
+            .setDescription(`Loaded ${i + 1}/${videos.length} songs...`)
+            .setTimestamp()] });
+        }
+      }
+
+      await statusEmbed.edit({ embeds: [new EmbedBuilder()
+        .setColor('#00ff00')
+        .setTitle('✅ Playlist Loaded')
+        .setDescription(`Added ${videos.length} songs from playlist to queue.`)
+        .setTimestamp()] });
       
       if (this.queue.length === videos.length) {
-        this.processDownloadQueue();
+        this.processDownloadQueue(message);
       }
     } catch (error) {
       console.error('Error loading playlist:', error);
-      message.reply('Error loading playlist. Please try again.');
+      await this.sendStatusEmbed(message, '❌ Error', 'Error loading playlist. Please try again.', '#ff0000');
     }
   }
 
- async processDownloadQueue() {
+ async processDownloadQueue(message) {
     if (this.isDownloading || this.downloadQueue.length === 0) return;
 
     this.isDownloading = true;
     const song = this.downloadQueue.shift();
     
     try {
-      await this.downloadSong(song);
+      const statusEmbed = await this.sendStatusEmbed(message, '⏬ Downloading', `Downloading: ${song.title}`);
+      await this.downloadSong(song, statusEmbed);
       if (this.player.state.status === AudioPlayerStatus.Idle) {
-        this.playSong();
+        this.playSong(message);
       }
     } catch (error) {
       console.error('Error downloading song:', error);
+      await this.sendStatusEmbed(message, '❌ Download Error', `Failed to download: ${song.title}`, '#ff0000');
     } finally {
       this.isDownloading = false;
-      this.processDownloadQueue();
+      this.processDownloadQueue(message);
     }
   }
   
-   async downloadSong(song) {
+    async downloadSong(song, statusEmbed) {
     return new Promise((resolve, reject) => {
       const outputFile = path.join(__dirname, `${Date.now()}.%(ext)s`);
       const command = `yt-dlp --no-playlist --extract-audio --audio-format mp3 --audio-quality 0 --output "${outputFile}" ${song.url}`;
       
-      exec(command, (error, stdout, stderr) => {
-        if (error) {
-          console.error(`Error downloading audio: ${error.message}`);
-          reject(error);
-          return;
+      const process = exec(command);
+      let progress = 0;
+
+      process.stderr.on('data', (data) => {
+        const match = data.match(/(\d+\.\d+)%/);
+        if (match) {
+          const newProgress = parseFloat(match[1]);
+          if (newProgress > progress + 10) {
+            progress = newProgress;
+            statusEmbed.edit({ embeds: [new EmbedBuilder()
+              .setColor('#0099ff')
+              .setTitle('⏬ Downloading')
+              .setDescription(`Downloading: ${song.title}\nProgress: ${progress.toFixed(1)}%`)
+              .setTimestamp()] });
+          }
         }
-        
-        const files = fs.readdirSync(__dirname);
-        const audioFile = files.find(file => file.startsWith(path.basename(outputFile, path.extname(outputFile))));
-        
-        if (!audioFile) {
-          console.error('Audio file not found after download');
-          reject(new Error('Audio file not found'));
-          return;
+      });
+
+      process.on('exit', (code) => {
+        if (code === 0) {
+          const files = fs.readdirSync(__dirname);
+          const audioFile = files.find(file => file.startsWith(path.basename(outputFile, path.extname(outputFile))));
+          
+          if (!audioFile) {
+            reject(new Error('Audio file not found'));
+            return;
+          }
+          
+          song.filePath = path.join(__dirname, audioFile);
+          statusEmbed.edit({ embeds: [new EmbedBuilder()
+            .setColor('#00ff00')
+            .setTitle('✅ Download Complete')
+            .setDescription(`Successfully downloaded: ${song.title}`)
+            .setTimestamp()] });
+          resolve();
+        } else {
+          reject(new Error(`yt-dlp exited with code ${code}`));
         }
-        
-        song.filePath = path.join(__dirname, audioFile);
-        resolve();
       });
     });
   }
 
-  async skipSong(message) {
+   async skipSong(message) {
     if (this.queue.length > 0) {
       this.player.stop();
-      message.reply('Skipped to the next song.');
+      await this.sendStatusEmbed(message, '⏭️ Skipped', 'Skipped to the next song.');
     } else {
-      message.reply('No songs in the queue to skip.');
+      await this.sendStatusEmbed(message, '❌ Cannot Skip', 'No songs in the queue to skip.', '#ff0000');
     }
   }
 
-  showQueue(message) {
+   async showQueue(message) {
     if (this.queue.length === 0) {
-      message.reply('The queue is empty.');
+      await this.sendStatusEmbed(message, '📭 Queue Empty', 'The queue is empty.');
     } else {
       const queueList = this.queue.map((song, index) =>
         `${index + 1}. ${song.title}`
       ).join('\n');
-      message.reply(`Current queue:\n${queueList}`);
+      await this.sendStatusEmbed(message, '📋 Current Queue', queueList);
     }
   }
 
-  async playSong() {
+   async playSong(message) {
     if (this.queue.length > 0 && this.currentIndex < this.queue.length) {
       const song = this.queue[this.currentIndex];
       
       if (!song.filePath) {
-        console.log(`Waiting for download: ${song.title}`);
-        setTimeout(() => this.playSong(), 1000);
+        await this.sendStatusEmbed(message, '⏳ Waiting', `Waiting for download: ${song.title}`);
+        setTimeout(() => this.playSong(message), 1000);
         return;
       }
 
       try {
         const resource = createAudioResource(song.filePath);
         this.player.play(resource);
-        console.log(`Now playing: ${song.title}`);
+        await this.sendStatusEmbed(message, '🎶 Now Playing', `Now playing: ${song.title}`);
         
         this.player.once(AudioPlayerStatus.Idle, () => {
           fs.unlinkSync(song.filePath);
           this.currentIndex++;
-          this.playSong();
+          this.playSong(message);
         });
       } catch (error) {
         console.error('Error playing song:', error);
+        await this.sendStatusEmbed(message, '❌ Playback Error', `Error playing: ${song.title}`, '#ff0000');
         this.currentIndex++;
-        this.playSong();
+        this.playSong(message);
       }
+    } else {
+      await this.sendStatusEmbed(message, '📭 Queue Empty', 'The queue is now empty. Add more songs!');
     }
   }
-}
 
 
 const client = new Client({
