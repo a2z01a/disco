@@ -87,28 +87,41 @@ class MusicBot {
     }
   }
 
-  async handleCommand(message) {
-    const args = message.content.slice(this.prefix.length).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
+ async handleCommand(message) {
+  const args = message.content.slice(this.prefix.length).trim().split(/ +/);
+  const command = args.shift().toLowerCase();
 
-    if (command === 'play') {
+  switch (command) {
+    case 'play':
       const songUrl = args[0];
       if (!songUrl) {
         return message.reply('Please provide a song URL or search term.');
       }
       await this.addToQueue(message, songUrl);
-    } else if (command === 'playlist') {
+      this.processDownloadQueue(); // Add this line
+      break;
+
+    case 'playlist':
       const playlistUrl = args[0];
       if (!playlistUrl) {
         return message.reply('Please provide a playlist URL.');
       }
       await this.loadPlaylist(message, playlistUrl);
-    } else if (command === 'skip') {
+      this.processDownloadQueue(); // Add this line
+      break;
+
+    case 'skip':
       await this.skipSong(message);
-    } else if (command === 'queue') {
+      break;
+
+    case 'queue':
       this.showQueue(message);
-    }
+      break;
+
+    default:
+      message.reply('Unknown command. Available commands: play, playlist, skip, queue');
   }
+}
 
   async addToQueue(message, songUrl) {
     try {
