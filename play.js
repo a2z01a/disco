@@ -246,14 +246,15 @@ class MusicBot {
     const song = this.downloadQueue.shift();
     
     try {
-      const statusEmbed = await this.sendStatusEmbed(message, '⏬ Downloading', `Downloading:` ${song.title});
+      const statusEmbed = await this.sendStatusEmbed(message, '⏬ Downloading', `Downloading: ${song.title}`);
+
       await this.downloadSong(song, statusEmbed);
       if (this.player.state.status === AudioPlayerStatus.Idle) {
         this.playSong(message);
       }
     } catch (error) {
       console.error('Error downloading song:', error);
-      await this.sendStatusEmbed(message, '❌ Download Error', `Failed to download:` ${song.title}, '#ff0000');
+      await this.sendStatusEmbed(message, '❌ Download Error', `Failed to download: ${song.title}`, '#ff0000');
     } finally {
       this.isDownloading = false;
       this.processDownloadQueue(message);
