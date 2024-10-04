@@ -8,29 +8,26 @@ const { Client, GatewayIntentBits } = require('discord.js');
 const play = require('play-dl');
 
 class MusicBot {
-  constructor(client, roomName) {
+  constructor(client, name, channelId) {
     this.client = client;
-    this.roomName = roomName;
+    this.name = name;
+    this.channelId = channelId;
     this.prefix = '!';
     this.queue = [];
     this.currentIndex = 0;
     this.player = null;
     this.connection = null;
-    this.voiceChannelId = null;
-    this.textChannelId = null;
     this.isPaused = false;
   }
 
-  async initialize(guildId, voiceChannelId, textChannelId) {
-    this.voiceChannelId = voiceChannelId;
-    this.textChannelId = textChannelId;
+  async initialize(guildId) {
     await this.joinVoiceChannel(guildId);
   }
 
   async joinVoiceChannel(guildId) {
     try {
       this.connection = joinVoiceChannel({
-        channelId: this.voiceChannelId,
+        channelId: this.channelId,
         guildId: guildId,
         adapterCreator: this.client.guilds.cache.get(guildId).voiceAdapterCreator,
       });
@@ -54,7 +51,6 @@ class MusicBot {
         });
       }
 
-      // Check if voice channel is empty every 5 seconds
       setInterval(() => this.checkVoiceChannel(), 5000);
 
       return this.connection;
@@ -64,24 +60,22 @@ class MusicBot {
     }
   }
 
-  async checkVoiceChannel() {
-    const channel = this.client.channels.cache.get(this.voiceChannelId);
+ async checkVoiceChannel() {
+    const channel = this.client.channels.cache.get(this.channelId);
     if (channel && channel.members.size === 1) {
       if (!this.isPaused) {
         this.player.pause();
         this.isPaused = true;
-        console.log('Paused playback due to empty voice channel');
+        console.log(`${this.name}: Paused playback due to empty voice channel`);
       }
     } else if (this.isPaused) {
       this.player.unpause();
       this.isPaused = false;
-      console.log('Resumed playback');
+      console.log(`${this.name}: Resumed playback`);
     }
   }
 
-  async handleCommand(message) {
-    if (message.channel.id !== this.textChannelId) return;
-
+   async handleCommand(message) {
     const args = message.content.slice(this.prefix.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
@@ -227,12 +221,10 @@ const bots = new Map();
 
 client.once('ready', () => {
   console.log('Bot is ready!');
-  // Initialize bots for specific rooms here
-  // Example: bots.set('Trap Music', new MusicBot(client, 'Trap Music'));
 });
 
 client.on('messageCreate', async (message) => {
-  const bot = Array.from(bots.values()).find(bot => bot.textChannelId === message.channel.id);
+  const bot = bots.get(message.channel.id);
   if (bot && message.content.startsWith(bot.prefix)) {
     await bot.handleCommand(message);
   }
@@ -240,15 +232,15 @@ client.on('messageCreate', async (message) => {
 
 client.login(process.env.DISCORD_BOT_TOKEN);
 
-// Initialize bots for specific rooms
-// Replace these with your actual room IDs
-const roomConfigs = [
-  { name: '「🗣」Voice', guildId: '1284917135595798709', voiceChannelId: '1291366977667076170', textChannelId: '1291366977667076170' },
-  // Add more room configurations as needed
+// Initialize bots for specific channels
+const botConfigs = [
+  { name: 'Trap Music Bot', channelId: 'voice_channel_id_1', guildId: 'your_guild_id' },
+  { name: 'Lofi Bot', channelId: 'voice_channel_id_2', guildId: 'your_guild_id' },
+  // Add more bot configurations as needed
 ];
 
-roomConfigs.forEach(config => {
-  const bot = new MusicBot(client, config.name);
-  bot.initialize(config.guildId, config.voiceChannelId, config.textChannelId);
-  bots.set(config.name, bot);
+botConfigs.forEach(config => {
+  const bot = new MusicBot(client, config.name, config.channelId);
+  bot.initialize(config.guildId);
+  bots.set(config.channelId, bot);
 });
