@@ -19,17 +19,21 @@ class MusicBot {
     this.connection = null;
     this.isPaused = false;
   }
-
-  async initialize(guildId) {
-    await this.joinVoiceChannel(guildId);
+async initialize() {
+    await this.joinVoiceChannel();
   }
 
-  async joinVoiceChannel(guildId) {
+  async joinVoiceChannel() {
     try {
+      const channel = await this.client.channels.fetch(this.channelId);
+      if (!channel || channel.type !== 'GUILD_VOICE') {
+        throw new Error('Invalid voice channel');
+      }
+
       this.connection = joinVoiceChannel({
         channelId: this.channelId,
-        guildId: guildId,
-        adapterCreator: this.client.guilds.cache.get(guildId).voiceAdapterCreator,
+        guildId: channel.guild.id,
+        adapterCreator: channel.guild.voiceAdapterCreator,
       });
 
       await entersState(this.connection, VoiceConnectionStatus.Ready, 30_000);
@@ -53,15 +57,15 @@ class MusicBot {
 
       setInterval(() => this.checkVoiceChannel(), 5000);
 
+      console.log(`${this.name}: Successfully joined voice channel`);
       return this.connection;
     } catch (error) {
-      console.error('Error joining voice channel:', error);
+      console.error(`${this.name}: Error joining voice channel:`, error);
       return null;
     }
   }
-
- async checkVoiceChannel() {
-    const channel = this.client.channels.cache.get(this.channelId);
+async checkVoiceChannel() {
+    const channel = await this.client.channels.fetch(this.channelId);
     if (channel && channel.members.size === 1) {
       if (!this.isPaused) {
         this.player.pause();
@@ -75,7 +79,7 @@ class MusicBot {
     }
   }
 
-   async handleCommand(message) {
+    async handleCommand(message) {
     const args = message.content.slice(this.prefix.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
@@ -221,24 +225,35 @@ const bots = new Map();
 
 client.once('ready', () => {
   console.log('Bot is ready!');
+  initializeBots();
 });
 
 client.on('messageCreate', async (message) => {
-  const bot = bots.get(message.channel.id);
-  if (bot && message.content.startsWith(bot.prefix)) {
-    await bot.handleCommand(message);
+  if (message.channel.type !== 'GUILD_TEXT') return;
+  
+  const associatedVoiceChannel = message.channel.guild.channels.cache
+    .find(channel => channel.type === 'GUILD_VOICE' && channel.name === message.channel.name);
+  
+  if (associatedVoiceChannel) {
+    const bot = bots.get(associatedVoiceChannel.id);
+    if (bot && message.content.startsWith(bot.prefix)) {
+      await bot.handleCommand(message);
+    }
   }
 });
 
+function initializeBots() {
+  const botConfigs = [
+    { name: 'Trap Music Bot', channelId: 'voice_channel_id_1' },
+    { name: 'Lofi Bot', channelId: 'voice_channel_id_2' },
+    // Add more bot configurations as needed
+  ];
+
+  botConfigs.forEach(config => {
+    const bot = new MusicBot(client, config.name, config.channelId);
+    bot.initialize();
+    bots.set(config.channelId, bot);
+  });
+}
+
 client.login(process.env.DISCORD_BOT_TOKEN);
-
-// Initialize bots for specific channels
-const botConfigs = [
-  { name: 'Trap Music', channelId: '1291366977667076170', guildId: '1284917135595798709' }
-];
-
-botConfigs.forEach(config => {
-  const bot = new MusicBot(client, config.name, config.channelId);
-  bot.initialize(config.guildId);
-  bots.set(config.channelId, bot);
-});
