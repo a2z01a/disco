@@ -220,13 +220,13 @@ client.on('messageCreate', async (message) => {
 
 function initializeBots() {
   const botConfigs = [
-    { name: 'PlayBot', channelId: '1291366977667076170' },
+    { name: 'PlayBot', voiceChannelId: '1291366977667076170' },
   ];
 
-  botConfigs.forEach(config => {
-    const bot = new MusicBot(client, config.name, config.channelId);
-    bot.initialize();
-    bots.set(config.channelId, bot);
+  botConfigs.forEach(async (config) => {
+    const bot = new MusicBot(client, config.name, config.voiceChannelId);
+    await bot.initialize();
+    bots.set(config.name, bot);
   });
 }
 
