@@ -11,6 +11,15 @@ const {
 const { Client, GatewayIntentBits } = require('discord.js');
 const play = require('play-dl');
 
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates,
+  ],
+});
+
 class MusicBot {
   constructor(client, name, voiceChannelId) {
     this.client = client;
@@ -307,16 +316,6 @@ class MusicBot {
       await this.sendStatusEmbed(message, '📭 Queue Empty', 'The queue is now empty. Add more songs!');
     }
   }
-
-
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildVoiceStates,
-  ],
-});
 
 const bots = new Map();
 
