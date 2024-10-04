@@ -104,7 +104,7 @@ class MusicBot {
     }
   }
 
-  // ... (rest of the MusicBot class methods remain the same)
+  
 }
 
 const client = new Client({
