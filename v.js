@@ -77,6 +77,18 @@ async function jVoiceChannel(message) {
     message.reply('Failed to join the voice channel. Please try again.');
     return null;
   }
+   connection.on(VoiceConnectionStatus.Ready, () => {
+    // Check every 5 seconds if the channel is empty
+    setInterval(() => {
+      if (isVoiceChannelEmpty(connection)) {
+        console.log('Voice channel is empty. Disconnecting...');
+        connection.destroy();
+        player = null;
+        queue = [];
+        currentIndex = 0;
+      }
+    }, 5000);
+  });
 }
 
 // Message handler for commands
@@ -109,6 +121,17 @@ client.on('messageCreate', async (message) => {
     console.log('Going back to the previous song...');
     await previousSong(message);
   }
+  if (command === 'disconnect') {
+    if (connection) {
+      connection.destroy();
+      player = null;
+      queue = [];
+      currentIndex = 0;
+      message.channel.send('Disconnected from voice channel.');
+    } else {
+      message.channel.send('Not currently in a voice channel.');
+    }
+  }
 });
 
 // Play a song from the queue
@@ -116,6 +139,11 @@ client.on('messageCreate', async (message) => {
 async function playSong() {
   if (queue.length === 0) {
     console.log('Queue is empty');
+    return;
+  }
+
+  if (isVoiceChannelEmpty(connection)) {
+    console.log('Voice channel is empty. Stopping playback.');
     return;
   }
 
