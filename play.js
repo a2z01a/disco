@@ -278,7 +278,7 @@ class MusicBot {
             statusEmbed.edit({ embeds: [new EmbedBuilder()
               .setColor('#0099ff')
               .setTitle('⏬ Downloading')
-              .setDescription(Downloading: ${song.title}\nProgress: ${progress.toFixed(1)}%)
+              .setDescription(`Downloading: ${song.title}\nProgress: ${progress.toFixed(1)}%`)
               .setTimestamp()] });
           }
         }
@@ -298,7 +298,7 @@ class MusicBot {
           statusEmbed.edit({ embeds: [new EmbedBuilder()
             .setColor('#00ff00')
             .setTitle('✅ Download Complete')
-            .setDescription(Successfully downloaded: ${song.title})
+            .setDescription(`Successfully downloaded: ${song.title}`)
             .setTimestamp()] });
           resolve();
         } else {
