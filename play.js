@@ -21,6 +21,38 @@ const client = new Client({
   ],
 });
 
+client.on('ready', function() {
+  console.log('Bot is ready!');
+  initializeBots();
+});
+
+client.on('messageCreate', async (message) => {
+  if (message.channel.type !== 0) return; // 0 is the value for GUILD_TEXT
+  
+  const bot = Array.from(bots.values()).find(bot =>
+    message.member && message.member.voice.channelId === bot.voiceChannelId
+  );
+
+  if (bot && message.content.startsWith(bot.prefix)) {
+    await bot.handleCommand(message);
+  }
+});
+
+function initializeBots() {
+  const botConfigs = [
+    { name: 'Trap Music Bot', voiceChannelId: '1291366977667076170' },
+    // Add more bot configurations as needed
+  ];
+
+  botConfigs.forEach(config => {
+    const bot = new MusicBot(client, config.name, config.voiceChannelId);
+    bot.initialize();
+    bots.set(config.voiceChannelId, bot);
+  });
+}
+
+client.login(process.env.DISCORD_BOT_TOKEN);
+
 class MusicBot {
   constructor(client, name, voiceChannelId) {
     this.client = client;
@@ -322,36 +354,3 @@ async loadPlaylist(message, playlistUrl) {
     }
   }
 
-
-
-client.once('ready', () => {
-  console.log('Bot is ready!');
-  initializeBots();
-});
-
-client.on('messageCreate', async (message) => {
-  if (message.channel.type !== 0) return; // 0 is the value for GUILD_TEXT
-  
-  const bot = Array.from(bots.values()).find(bot =>
-    message.member && message.member.voice.channelId === bot.voiceChannelId
-  );
-
-  if (bot && message.content.startsWith(bot.prefix)) {
-    await bot.handleCommand(message);
-  }
-});
-
-function initializeBots() {
-  const botConfigs = [
-    { name: 'Trap Music Bot', voiceChannelId: '1291366977667076170' },
-    // Add more bot configurations as needed
-  ];
-
-  botConfigs.forEach(config => {
-    const bot = new MusicBot(client, config.name, config.voiceChannelId);
-    bot.initialize();
-    bots.set(config.voiceChannelId, bot);
-  });
-}
-
-client.login(process.env.DISCORD_BOT_TOKEN);
