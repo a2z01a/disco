@@ -302,7 +302,7 @@ class MusicBot {
             .setTimestamp()] });
           resolve();
         } else {
-          reject(new Error(yt-dlp exited with code ${code}));
+          reject(new Error(`yt-dlp exited with code ${code}`));
         }
       });
     });
