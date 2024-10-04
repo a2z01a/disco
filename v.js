@@ -67,6 +67,28 @@ async function jVoiceChannel(message) {
         currentIndex = 0;
       }
     }, 5000);
+    
+    if (!player) {
+      player = createAudioPlayer();
+      connection.subscribe(player);
+
+      // Add error handling for the player
+      player.on('error', (error) => {
+        console.error('Playback error:', error.message);
+  console.error('Error details:', error);
+        playSong().catch(console.error);
+      });
+
+      player.on(AudioPlayerStatus.Playing, () => {
+        console.log('The audio player has started playing!');
+      });
+
+      player.on(AudioPlayerStatus.Idle, () => {
+        console.log('The audio player has become idle.');
+        currentIndex = (currentIndex + 1) % queue.length;
+        playSong().catch(console.error);
+      });
+    }
 
     return connection;
   } catch (error) {
