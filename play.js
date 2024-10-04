@@ -1,10 +1,13 @@
 require('dotenv').config();
 
+const { exec } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
 const { 
   createAudioPlayer, createAudioResource, AudioPlayerStatus, 
   VoiceConnectionStatus, joinVoiceChannel, entersState 
 } = require('@discordjs/voice');
-const { spawn } = require('child_process');
 const { Client, GatewayIntentBits } = require('discord.js');
 const play = require('play-dl');
 
@@ -165,22 +168,44 @@ class MusicBot {
   }
 
   async playSong() {
-    if (this.queue.length > 0 && this.currentIndex < this.queue.length) {
-      const song = this.queue[this.currentIndex];
-      try {
-        const stream = await play.stream(song.url);
-        const resource = createAudioResource(stream.stream, {
-          inputType: stream.type,
-        });
+  if (this.queue.length > 0 && this.currentIndex < this.queue.length) {
+    const song = this.queue[this.currentIndex];
+    try {
+      const outputFile = path.join(__dirname, `${Date.now()}.%(ext)s`);
+      
+      const command = `yt-dlp --no-playlist --extract-audio --audio-format mp3 --audio-quality 0 --output "${outputFile}" ${song.url}`;
+      
+      exec(command, async (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Error downloading audio: ${error.message}`);
+          return;
+        }
+        
+        const files = fs.readdirSync(__dirname);
+        const audioFile = files.find(file => file.startsWith(path.basename(outputFile, path.extname(outputFile))));
+        
+        if (!audioFile) {
+          console.error('Audio file not found after download');
+          return;
+        }
+        
+        const resource = createAudioResource(path.join(__dirname, audioFile));
         this.player.play(resource);
+        
         console.log(`Now playing: ${song.title}`);
-      } catch (error) {
-        console.error('Error playing song:', error);
-        this.currentIndex++;
-        this.playSong();
-      }
+        
+        // Clean up the file after playing
+        this.player.once(AudioPlayerStatus.Idle, () => {
+          fs.unlinkSync(path.join(__dirname, audioFile));
+        });
+      });
+    } catch (error) {
+      console.error('Error playing song:', error);
+      this.currentIndex++;
+      this.playSong();
     }
   }
+}
 }
 
 const client = new Client({
