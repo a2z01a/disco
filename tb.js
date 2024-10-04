@@ -234,9 +234,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
 
 // Initialize bots for specific channels
 const botConfigs = [
-  { name: 'Trap Music Bot', channelId: 'voice_channel_id_1', guildId: 'your_guild_id' },
-  { name: 'Lofi Bot', channelId: 'voice_channel_id_2', guildId: 'your_guild_id' },
-  // Add more bot configurations as needed
+  { name: 'Trap Music', channelId: '1291366977667076170', guildId: '1284917135595798709' }
 ];
 
 botConfigs.forEach(config => {
