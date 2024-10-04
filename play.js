@@ -22,6 +22,8 @@ class MusicBot {
     this.player = null;
     this.connection = null;
     this.isPaused = false;
+	this.downloadQueue = [];
+    this.isDownloading = false;
   }
 
   async initialize() {
@@ -111,13 +113,16 @@ class MusicBot {
   async addToQueue(message, songUrl) {
     try {
       const songInfo = await play.video_info(songUrl);
-      this.queue.push({
+      const song = {
         title: songInfo.video_details.title,
         url: songUrl,
-      });
-      message.reply(`Added to queue: ${songInfo.video_details.title}`);
+      };
+      this.queue.push(song);
+      this.downloadQueue.push(song);
+      message.reply(`Added to queue: ${song.title}`);
+      
       if (this.queue.length === 1) {
-        this.playSong();
+        this.processDownloadQueue();
       }
     } catch (error) {
       console.error('Error adding song to queue:', error);
@@ -131,20 +136,69 @@ class MusicBot {
       const videos = await playlist.all_videos();
 
       videos.forEach(video => {
-        this.queue.push({
+        const song = {
           title: video.title,
           url: video.url,
-        });
+        };
+        this.queue.push(song);
+        this.downloadQueue.push(song);
       });
 
       message.reply(`Added ${videos.length} songs from playlist to queue.`);
+      
       if (this.queue.length === videos.length) {
-        this.playSong();
+        this.processDownloadQueue();
       }
     } catch (error) {
       console.error('Error loading playlist:', error);
       message.reply('Error loading playlist. Please try again.');
     }
+  }
+
+ async processDownloadQueue() {
+    if (this.isDownloading || this.downloadQueue.length === 0) return;
+
+    this.isDownloading = true;
+    const song = this.downloadQueue.shift();
+    
+    try {
+      await this.downloadSong(song);
+      if (this.player.state.status === AudioPlayerStatus.Idle) {
+        this.playSong();
+      }
+    } catch (error) {
+      console.error('Error downloading song:', error);
+    } finally {
+      this.isDownloading = false;
+      this.processDownloadQueue();
+    }
+  }
+  
+   async downloadSong(song) {
+    return new Promise((resolve, reject) => {
+      const outputFile = path.join(__dirname, `${Date.now()}.%(ext)s`);
+      const command = `yt-dlp --no-playlist --extract-audio --audio-format mp3 --audio-quality 0 --output "${outputFile}" ${song.url}`;
+      
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Error downloading audio: ${error.message}`);
+          reject(error);
+          return;
+        }
+        
+        const files = fs.readdirSync(__dirname);
+        const audioFile = files.find(file => file.startsWith(path.basename(outputFile, path.extname(outputFile))));
+        
+        if (!audioFile) {
+          console.error('Audio file not found after download');
+          reject(new Error('Audio file not found'));
+          return;
+        }
+        
+        song.filePath = path.join(__dirname, audioFile);
+        resolve();
+      });
+    });
   }
 
   async skipSong(message) {
@@ -168,45 +222,34 @@ class MusicBot {
   }
 
   async playSong() {
-  if (this.queue.length > 0 && this.currentIndex < this.queue.length) {
-    const song = this.queue[this.currentIndex];
-    try {
-      const outputFile = path.join(__dirname, `${Date.now()}.%(ext)s`);
+    if (this.queue.length > 0 && this.currentIndex < this.queue.length) {
+      const song = this.queue[this.currentIndex];
       
-      const command = `yt-dlp --no-playlist --extract-audio --audio-format mp3 --audio-quality 0 --output "${outputFile}" ${song.url}`;
-      
-      exec(command, async (error, stdout, stderr) => {
-        if (error) {
-          console.error(`Error downloading audio: ${error.message}`);
-          return;
-        }
-        
-        const files = fs.readdirSync(__dirname);
-        const audioFile = files.find(file => file.startsWith(path.basename(outputFile, path.extname(outputFile))));
-        
-        if (!audioFile) {
-          console.error('Audio file not found after download');
-          return;
-        }
-        
-        const resource = createAudioResource(path.join(__dirname, audioFile));
+      if (!song.filePath) {
+        console.log(`Waiting for download: ${song.title}`);
+        setTimeout(() => this.playSong(), 1000);
+        return;
+      }
+
+      try {
+        const resource = createAudioResource(song.filePath);
         this.player.play(resource);
-        
         console.log(`Now playing: ${song.title}`);
         
-        // Clean up the file after playing
         this.player.once(AudioPlayerStatus.Idle, () => {
-          fs.unlinkSync(path.join(__dirname, audioFile));
+          fs.unlinkSync(song.filePath);
+          this.currentIndex++;
+          this.playSong();
         });
-      });
-    } catch (error) {
-      console.error('Error playing song:', error);
-      this.currentIndex++;
-      this.playSong();
+      } catch (error) {
+        console.error('Error playing song:', error);
+        this.currentIndex++;
+        this.playSong();
+      }
     }
   }
 }
-}
+
 
 const client = new Client({
   intents: [
