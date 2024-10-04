@@ -160,7 +160,7 @@ class MusicBot {
     }
   }
 
-  sync loadPlaylist(message, playlistUrl) {
+async loadPlaylist(message, playlistUrl) {
     try {
       const statusEmbed = await this.sendStatusEmbed(message, '📋 Loading Playlist', 'Starting to load playlist...');
 
