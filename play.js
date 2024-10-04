@@ -227,7 +227,7 @@ class MusicBot {
       await statusEmbed.edit({ embeds: [new EmbedBuilder()
         .setColor('#00ff00')
         .setTitle('✅ Playlist Loaded')
-        .setDescription(Added ${videos.length} songs from playlist to queue.)
+        .setDescription(`Added ${videos.length} songs from playlist to queue.`)
         .setTimestamp()] });
       
       if (this.queue.length === videos.length) {
