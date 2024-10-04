@@ -180,8 +180,8 @@ class MusicBot {
       }
     }
   }
-} 
-}
+ 
+
 
 const client = new Client({
   intents: [
