@@ -196,15 +196,114 @@ class MusicBot {
   }
 
   async loadPlaylist(message, playlistUrl) {
-    // ... (omitted for brevity)
+    try {
+      const statusEmbed = await this.sendStatusEmbed(message, '📋 Loading Playlist', 'Starting to load playlist...');
+
+      const { stdout } = await execPromise(yt-dlp --flat-playlist --get-title --get-id "${playlistUrl}");
+      const videos = stdout.trim().split('\n').reduce((acc, line, index) => {
+        if (index % 2 === 0) {
+          acc.push({ title: line });
+        } else {
+          acc[acc.length - 1].url = https://www.youtube.com/watch?v=${line};
+        }
+        return acc;
+      }, []);
+
+      for (let i = 0; i < videos.length; i++) {
+        const video = videos[i];
+        this.queue.push(video);
+        this.downloadQueue.push(video);
+
+        if (i % 10 === 0 || i === videos.length - 1) {
+          await statusEmbed.edit({ embeds: [new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('📋 Loading Playlist')
+            .setDescription(Loaded ${i + 1}/${videos.length} songs...)
+            .setTimestamp()] });
+        }
+      }
+
+      await statusEmbed.edit({ embeds: [new EmbedBuilder()
+        .setColor('#00ff00')
+        .setTitle('✅ Playlist Loaded')
+        .setDescription(Added ${videos.length} songs from playlist to queue.)
+        .setTimestamp()] });
+      
+      if (this.queue.length === videos.length) {
+        this.processDownloadQueue(message);
+      }
+    } catch (error) {
+      console.error('Error loading playlist:', error);
+      await this.sendStatusEmbed(message, '❌ Error', 'Error loading playlist. Please try again.', '#ff0000');
+    }
   }
 
   async processDownloadQueue(message) {
-    // ... (omitted for brevity)
+    if (this.isDownloading || this.downloadQueue.length === 0) return;
+
+    this.isDownloading = true;
+    const song = this.downloadQueue.shift();
+    
+    try {
+      const statusEmbed = await this.sendStatusEmbed(message, '⏬ Downloading', Downloading: ${song.title});
+      await this.downloadSong(song, statusEmbed);
+      if (this.player.state.status === AudioPlayerStatus.Idle) {
+        this.playSong(message);
+      }
+    } catch (error) {
+      console.error('Error downloading song:', error);
+      await this.sendStatusEmbed(message, '❌ Download Error', Failed to download: ${song.title}, '#ff0000');
+    } finally {
+      this.isDownloading = false;
+      this.processDownloadQueue(message);
+    }
   }
   
   async downloadSong(song, statusEmbed) {
-    // ... (omitted for brevity)
+    return new Promise((resolve, reject) => {
+      const outputFile = path.join(__dirname, ${Date.now()}.%(ext)s);
+      const command = yt-dlp --no-playlist --extract-audio --audio-format mp3 --audio-quality 0 --output "${outputFile}" ${song.url};
+      
+      const process = exec(command);
+      let progress = 0;
+
+      process.stderr.on('data', (data) => {
+        const match = data.match(/(\d+\.\d+)%/);
+        if (match) {
+          const newProgress = parseFloat(match[1]);
+          if (newProgress > progress + 10) {
+            progress = newProgress;
+            statusEmbed.edit({ embeds: [new EmbedBuilder()
+              .setColor('#0099ff')
+              .setTitle('⏬ Downloading')
+              .setDescription(Downloading: ${song.title}\nProgress: ${progress.toFixed(1)}%)
+              .setTimestamp()] });
+          }
+        }
+      });
+
+      process.on('exit', (code) => {
+        if (code === 0) {
+          const files = fs.readdirSync(__dirname);
+          const audioFile = files.find(file => file.startsWith(path.basename(outputFile, path.extname(outputFile))));
+          
+          if (!audioFile) {
+            reject(new Error('Audio file not found'));
+            return;
+          }
+          
+          song.filePath = path.join(__dirname, audioFile);
+          statusEmbed.edit({ embeds: [new EmbedBuilder()
+            .setColor('#00ff00')
+            .setTitle('✅ Download Complete')
+            .setDescription(Successfully downloaded: ${song.title})
+            .setTimestamp()] });
+          resolve();
+        } else {
+          reject(new Error(yt-dlp exited with code ${code}));
+        }
+      });
+    });
   }
 
   async skipSong(message) {
