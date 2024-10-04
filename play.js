@@ -199,12 +199,13 @@ class MusicBot {
     try {
       const statusEmbed = await this.sendStatusEmbed(message, '📋 Loading Playlist', 'Starting to load playlist...');
 
-      const { stdout } = await execPromise(yt-dlp --flat-playlist --get-title --get-id "${playlistUrl}");
+      const { stdout } = await execPromise(`yt-dlp --flat-playlist --get-title --get-id "${playlistUrl}"`);
+
       const videos = stdout.trim().split('\n').reduce((acc, line, index) => {
         if (index % 2 === 0) {
           acc.push({ title: line });
         } else {
-          acc[acc.length - 1].url = https://www.youtube.com/watch?v=${line};
+          acc[acc.length - 1].url = `https://www.youtube.com/watch?v=${line}`;
         }
         return acc;
       }, []);
@@ -218,7 +219,7 @@ class MusicBot {
           await statusEmbed.edit({ embeds: [new EmbedBuilder()
             .setColor('#0099ff')
             .setTitle('📋 Loading Playlist')
-            .setDescription(Loaded ${i + 1}/${videos.length} songs...)
+            .setDescription(`Loaded ${i + 1}/${videos.length} songs...`)
             .setTimestamp()] });
         }
       }
@@ -262,7 +263,7 @@ class MusicBot {
   async downloadSong(song, statusEmbed) {
     return new Promise((resolve, reject) => {
       const outputFile = path.join(__dirname, ${Date.now()}.%(ext)s);
-      const command = yt-dlp --no-playlist --extract-audio --audio-format mp3 --audio-quality 0 --output "${outputFile}" ${song.url};
+      const command = `yt-dlp --no-playlist --extract-audio --audio-format mp3 --audio-quality 0 --output "${outputFile}" "${song.url}"`;
       
       const process = exec(command);
       let progress = 0;
