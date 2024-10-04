@@ -10,7 +10,7 @@ const {
   createAudioPlayer, createAudioResource, AudioPlayerStatus, 
   VoiceConnectionStatus, joinVoiceChannel, entersState 
 } = require('@discordjs/voice');
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const play = require('play-dl');
 const bots = new Map();
 const client = new Client({
