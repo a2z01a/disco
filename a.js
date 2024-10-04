@@ -4,14 +4,14 @@ const {
   VoiceConnectionStatus, joinVoiceChannel, entersState 
 } = require('@discordjs/voice');
 const { spawn } = require('child_process');
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, ChannelType } = require('discord.js');
 const play = require('play-dl');
 
 class MusicBot {
-  constructor(client, name, channelId) {
+  constructor(client, name, voiceChannelId) {
     this.client = client;
     this.name = name;
-    this.channelId = channelId;
+    this.voiceChannelId = voiceChannelId;
     this.prefix = '!';
     this.queue = [];
     this.currentIndex = 0;
@@ -26,19 +26,20 @@ class MusicBot {
 
   async joinVoiceChannel() {
     try {
-      const channel = await this.client.channels.fetch(this.channelId);
-      if (!channel || channel.type !== 'GUILD_VOICE') {
+      const channel = await this.client.channels.fetch(this.voiceChannelId);
+      
+      if (!channel || channel.type !== ChannelType.GuildVoice) {
         throw new Error('Invalid voice channel');
       }
 
       this.connection = joinVoiceChannel({
-        channelId: this.channelId,
+        channelId: this.voiceChannelId,
         guildId: channel.guild.id,
         adapterCreator: channel.guild.voiceAdapterCreator,
       });
 
       await entersState(this.connection, VoiceConnectionStatus.Ready, 30_000);
-      
+
       if (!this.player) {
         this.player = createAudioPlayer();
         this.connection.subscribe(this.player);
@@ -56,7 +57,8 @@ class MusicBot {
         });
       }
 
-      setInterval(() => this.checkVoiceChannel(), 5000); // Adjusted function call
+      // Check if anyone is in the voice channel every 5 seconds
+      setInterval(() => this.checkVoiceChannel(), 5000);
 
       console.log(`${this.name}: Successfully joined voice channel`);
       return this.connection;
@@ -67,43 +69,46 @@ class MusicBot {
   }
 
   async checkVoiceChannel() {
-    const channel = await this.client.channels.fetch(this.channelId);
-    if (channel && channel.members.size === 1) {
+    const channel = await this.client.channels.fetch(this.voiceChannelId);
+
+    if (channel.members.size === 1) { // Only the bot is in the channel
       if (!this.isPaused) {
+        console.log(`${this.name}: Pausing music because the bot is alone in the channel.`);
         this.player.pause();
         this.isPaused = true;
-        console.log(`${this.name}: Paused playback due to empty voice channel`);
       }
-    } else if (this.isPaused && channel.members.size > 1) {
-      this.player.unpause();
-      this.isPaused = false;
-      console.log(`${this.name}: Resumed playback as someone joined`);
+    } else if (channel.members.size > 1) { // There are other users in the channel
+      if (this.isPaused) {
+        console.log(`${this.name}: Resuming music because someone joined the channel.`);
+        this.player.unpause();
+        this.isPaused = false;
+      }
     }
   }
 
   async handleCommand(message) {
+    const voiceChannel = message.member.voice.channel;
+
+    if (!voiceChannel || voiceChannel.id !== this.voiceChannelId) {
+      return message.reply(`Please join the voice channel I'm in to use my commands.`);
+    }
+
     const args = message.content.slice(this.prefix.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
-
-    // Check if the user is in the same voice channel
-    const memberVoiceChannel = message.member.voice.channel;
-    if (!memberVoiceChannel) {
-      return message.reply('You must be in a voice channel to use this command.');
-    }
 
     if (command === 'play') {
       const songUrl = args[0];
       if (!songUrl) {
         return message.reply('Please provide a song URL or search term.');
       }
-      if (this.connection.channelId !== memberVoiceChannel.id) {
-        return message.reply('The bot is currently playing in another voice channel.');
-      }
       await this.addToQueue(message, songUrl);
-    } else if (command === 'skip') {
-      if (this.connection.channelId !== memberVoiceChannel.id) {
-        return message.reply('You must be in the same voice channel as the bot to skip songs.');
+    } else if (command === 'playlist') {
+      const playlistUrl = args[0];
+      if (!playlistUrl) {
+        return message.reply('Please provide a playlist URL.');
       }
+      await this.loadPlaylist(message, playlistUrl);
+    } else if (command === 'skip') {
       await this.skipSong(message);
     } else if (command === 'queue') {
       this.showQueue(message);
@@ -128,6 +133,10 @@ class MusicBot {
         url: songInfo.url,
       };
 
+      const existingIndex = this.queue.findIndex(s => s.url === song.url);
+      if (existingIndex !== -1) {
+        this.queue.splice(existingIndex, 1);
+      }
       this.queue.push(song);
 
       message.channel.send(`Added to queue: ${song.title}`);
@@ -138,6 +147,28 @@ class MusicBot {
     } catch (error) {
       console.error('Error adding song to queue:', error);
       message.channel.send('An error occurred while adding the song to the queue.');
+    }
+  }
+
+  async loadPlaylist(message, playlistUrl) {
+    try {
+      const playlist = await play.playlist_info(playlistUrl);
+      const videos = await playlist.all_videos();
+
+      this.queue = videos.map(video => ({
+        title: video.title,
+        url: video.url,
+      }));
+
+      message.channel.send(`Loaded ${this.queue.length} songs from the playlist.`);
+      console.log(`Loaded ${this.queue.length} songs from the playlist.`);
+
+      if (!this.player.playbackResource) {
+        this.playSong();
+      }
+    } catch (error) {
+      console.error('Error in loadPlaylist function:', error);
+      message.channel.send('An error occurred while loading the playlist. Please try again.');
     }
   }
 
@@ -186,7 +217,7 @@ class MusicBot {
       return message.channel.send('The queue is empty.');
     }
 
-    const queueList = this.queue.map((song, index) => 
+    const queueList = this.queue.map((song, index) =>
       `${index + 1}. ${song.title}`
     ).join('\n');
 
@@ -200,6 +231,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessageReactions,
   ],
 });
 
@@ -211,22 +243,24 @@ client.once('ready', () => {
 });
 
 client.on('messageCreate', async (message) => {
-  if (message.author.bot) return;  // Ignore bot messages
-  const bot = bots.get(message.guild.id);  // Get bot for the guild
-  if (bot && message.content.startsWith(bot.prefix)) {
+  if (message.author.bot) return;
+
+  const bot = Array.from(bots.values()).find(bot => message.content.startsWith(bot.prefix));
+  
+  if (bot) {
     await bot.handleCommand(message);
   }
 });
 
 function initializeBots() {
   const botConfigs = [
-    { name: 'PlayBot', channelId: '1291366977667076170' },
+    { name: 'PlayBot', voiceChannelId: '1291366977667076170' },
   ];
 
-  botConfigs.forEach(config => {
-    const bot = new MusicBot(client, config.name, config.channelId);
-    bot.initialize();
-    bots.set(config.channelId, bot);
+  botConfigs.forEach(async (config) => {
+    const bot = new MusicBot(client, config.name, config.voiceChannelId);
+    await bot.initialize();
+    bots.set(config.name, bot);
   });
 }
 
